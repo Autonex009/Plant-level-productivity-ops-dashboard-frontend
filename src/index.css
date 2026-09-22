@@ -1,0 +1,169 @@
+@import "tailwindcss";
+
+/*
+  Design tokens.
+
+  The dashboard is dark by default: its primary surface is the plant office, and
+  a control-room screen that runs all shift should not be a white rectangle in a
+  dim room. Light is a selected theme with its own steps from the same ramps -
+  not an automatic inversion.
+
+  Data colours come from a validated palette. The categorical slots and the
+  fixed status palette both cleared the colour-vision and contrast gates against
+  these exact surfaces; see README for the validator command. Two deliberate
+  exceptions, both required by the dashboard's own rules:
+    - Planned time (setup, planned maintenance) is grey, never red. A grey has
+      no chroma, so it fails a categorical chroma check by construction. Painting
+      a changeover the same colour as a breakdown is how a dashboard loses the
+      shop floor, so the grey stays and the relief is secondary encoding: every
+      segment carries a label, a legend, and a tooltip naming the state.
+    - Idle sits below 3:1 against the surface on purpose - it is the most
+      recessive state on the screen - and carries the same relief.
+*/
+
+@theme {
+  --color-plane: #0d0d0d;
+  --color-surface-1: #17171a;
+  --color-surface-2: #1f1f23;
+  --color-surface-3: #27272c;
+
+  --color-ink: #ffffff;
+  --color-ink-2: #c3c2b7;
+  --color-ink-muted: #898781;
+
+  --color-hairline: rgb(255 255 255 / 0.09);
+  --color-hairline-strong: rgb(255 255 255 / 0.16);
+  --color-grid: #2c2c2a;
+  --color-axis: #383835;
+
+  /* Status - fixed in both themes, never reused as a series colour. */
+  --color-good: #0ca30c;
+  --color-warning: #fab219;
+  --color-serious: #ec835a;
+  --color-critical: #d03b3b;
+
+  /* Categorical series, dark steps. */
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+
+  /* Machine / time states. */
+  --color-state-running: #3987e5;
+  --color-state-setup: #898781;
+  --color-state-breakdown: #d03b3b;
+  --color-state-waiting: #c98500;
+  --color-state-idle: #5f5f58;
+  --color-state-nodata: #4a4a46;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+}
+
+:root[data-theme="light"] {
+  --color-plane: #f2f2ef;
+  --color-surface-1: #fcfcfb;
+  --color-surface-2: #ffffff;
+  --color-surface-3: #f0efec;
+
+  --color-ink: #0b0b0b;
+  --color-ink-2: #52514e;
+  --color-ink-muted: #75736d;
+
+  --color-hairline: rgb(11 11 11 / 0.1);
+  --color-hairline-strong: rgb(11 11 11 / 0.18);
+  --color-grid: #e1e0d9;
+  --color-axis: #c3c2b7;
+
+  --color-series-1: #2a78d6;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+
+  --color-state-running: #2a78d6;
+  --color-state-setup: #898781;
+  --color-state-breakdown: #d03b3b;
+  --color-state-waiting: #eda100;
+  --color-state-idle: #b5b3ab;
+  --color-state-nodata: #cbc9c1;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-plane);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Figures that sit in columns must align; standalone numbers should not be
+   forced into tabular widths. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A panel: the single repeated container for every block on every level. */
+.panel {
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-hairline);
+  border-radius: 14px;
+}
+
+/* The live pulse on a running machine. Motion is reserved for one thing -
+   "this is live right now" - so it never competes with the data. */
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 currentColor;
+    opacity: 0.55;
+  }
+  70% {
+    box-shadow: 0 0 0 7px transparent;
+    opacity: 0;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    opacity: 0;
+  }
+}
+
+.pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  animation: pulse-ring 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse::after {
+    animation: none;
+  }
+}
+
+/* Recharts draws its own focus outlines; keep ours consistent instead. */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-series-1);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-hairline-strong);
+  border-radius: 999px;
+}

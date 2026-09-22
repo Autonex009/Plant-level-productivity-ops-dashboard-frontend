@@ -1,0 +1,205 @@
+import { useNavigate } from "react-router-dom";
+
+import { usePlantOverview, useTrends } from "@/api/queries";
+import type { RollupCard, WaterfallStep } from "@/api/types";
+import { AlertPanel } from "@/components/AlertPanel";
+import { FactorStrip, KpiCard } from "@/components/KpiCard";
+import { ProcessFlow } from "@/components/ProcessFlow";
+import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
+import { OwnerMobileView } from "@/pages/OwnerMobileView";
+import { ChartFrame } from "@/components/charts/ChartFrame";
+import { FlightPath } from "@/components/charts/FlightPath";
+import { LossWaterfall } from "@/components/charts/LossWaterfall";
+import { TrendLine } from "@/components/charts/TrendLine";
+import { formatInr, formatMetric } from "@/lib/format";
+import { useIsMobile } from "@/lib/useIsMobile";
+import { useRange } from "@/lib/useRange";
+
+/**
+ * Level 1 - the plant view. "What is happening with the plant right now?"
+ *
+ * The restraint is the feature: four rollup cards, exactly two charts, no
+ * machine names, no operating parameters, no tables, no Paretos. All of that
+ * exists one level down, and putting any of it here would cost the five-second
+ * read this screen exists to provide.
+ */
+export function PlantView() {
+  const { range, withRange } = useRange();
+  const navigate = useNavigate();
+  const overview = usePlantOverview(range);
+  const trends = useTrends(30);
+  // The owner's phone gets a re-ordered screen, not a narrower one.
+  const isMobile = useIsMobile();
+
+  const crumbs = [{ label: "Plant" }];
+
+  if (overview.isPending) {
+    return (
+      <Shell crumbs={crumbs}>
+        <LoadingPanel label="Reading the plant" />
+      </Shell>
+    );
+  }
+  if (overview.isError) {
+    return (
+      <Shell crumbs={crumbs}>
+        <ErrorPanel
+          error={overview.error}
+          hint="Check that the API is running and that VITE_API_PROXY points at it."
+        />
+      </Shell>
+    );
+  }
+
+  const data = overview.data;
+
+  // A loss in the waterfall drills into the stage that owns it. Not-running and
+  // ran-slow are the corrugator's; rejects are judged there too, since plant
+  // productivity is computed on the pacemaker.
+  const openLoss = (step: WaterfallStep) => {
+    navigate(withRange("/stage/board_manufacturing/specifics", { panel: "causes" }));
+    void step;
+  };
+
+  if (isMobile) {
+    return (
+      <Shell crumbs={crumbs} range={data.range} generatedAt={data.generated_at}>
+        <OwnerMobileView data={data} trends={trends.data} />
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell crumbs={crumbs} range={data.range} generatedAt={data.generated_at}>
+      <div className="flex flex-col gap-4">
+        <ProcessFlow stages={data.status_line} generatedAt={data.generated_at} />
+
+        {/* Four rollups, never five. */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {data.rollups.map((card) => (
+            <RollupTile
+              key={card.key}
+              card={card}
+              onOpen={() =>
+                navigate(
+                  withRange(
+                    card.key === "power_per_tonne_kwh"
+                      ? "/stage/board_manufacturing"
+                      : "/stage/board_manufacturing/specifics",
+                    { panel: card.key === "cost_of_waste_inr" ? "causes" : "hours" },
+                  ),
+                )
+              }
+            />
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_1fr]">
+          <FlightPath data={data.flight_path} />
+          <LossWaterfall steps={data.waterfall} onSelectLoss={openLoss} />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.05fr]">
+          <AlertPanel
+            alerts={data.alerts}
+            recurring={data.recurring_issues}
+            mode={data.alerts_panel_mode}
+            cap={data.alerts_panel_mode === "live" ? 5 : 6}
+          />
+
+          <ChartFrame
+            title="30-day trends"
+            question="Which direction are we moving?"
+            height={trends.data ? "auto" : 120}
+            note="A shaded span marks monsoon days, so a seasonal dip in yield reads as expected rather than as a failure."
+          >
+            {trends.isPending ? (
+              <div className="flex h-full items-center justify-center text-[12px] text-[var(--color-ink-muted)]">
+                Loading trends…
+              </div>
+            ) : trends.isError ? (
+              <div className="flex h-full items-center justify-center text-[12px] text-[var(--color-ink-muted)]">
+                Trends unavailable.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
+                {(
+                  [
+                    ["overall_yield_pct", "Overall yield", "%"],
+                    ["plant_productivity_pct", "Plant productivity", "%"],
+                    ["cost_of_waste_inr", "Cost of waste", "INR"],
+                    ["power_per_tonne_kwh", "Power per tonne", "kWh/t"],
+                  ] as const
+                ).map(([key, label, unit]) => {
+                  const band = trends.data.bands[key];
+                  return (
+                    <div key={key} className="min-w-0">
+                      <span className="block text-[11px] text-[var(--color-ink-2)]">
+                        {label}
+                      </span>
+                      <TrendLine
+                        label={label}
+                        unit={unit}
+                        target={band?.target ?? null}
+                        redLine={band?.red_line ?? null}
+                        height={110}
+                        data={trends.data.points.map((point) => ({
+                          date: point.date,
+                          value: point[key],
+                          isMonsoon: point.is_monsoon,
+                        }))}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ChartFrame>
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
+function RollupTile({ card, onOpen }: { card: RollupCard; onOpen: () => void }) {
+  // The composite carries its three factors small beneath it, so the weak lever
+  // is visible before anyone drills.
+  const isProductivity = card.key === "plant_productivity_pct";
+  const isWaste = card.key === "cost_of_waste_inr";
+  const excess = card.sub_values.find((value) => value.label === "Excess");
+
+  return (
+    <KpiCard
+      label={card.label}
+      value={card.value}
+      unit={card.unit}
+      target={card.target}
+      rag={card.rag}
+      provisional={card.provisional}
+      lowerIsBetter={card.lower_is_better}
+      seasonAdjusted={card.season_adjusted}
+      delta={card.delta}
+      deltaDirection={card.delta_direction}
+      onClick={onOpen}
+      sub={
+        isProductivity ? (
+          <FactorStrip items={card.sub_values} />
+        ) : isWaste && excess ? (
+          // The alert is on the excess, not the total: some waste is planned.
+          <span>
+            <span className="text-[var(--color-ink-muted)]">excess over plan </span>
+            <span className="tnum font-medium text-[var(--color-ink)]">
+              {formatInr(excess.value)}
+            </span>
+          </span>
+        ) : (
+          <span className="text-[var(--color-ink-muted)]">
+            {card.sub_values
+              .map((value) => `${value.label} ${formatMetric(value.value, value.unit)}`)
+              .join(" · ")}
+          </span>
+        )
+      }
+    />
+  );
+}
