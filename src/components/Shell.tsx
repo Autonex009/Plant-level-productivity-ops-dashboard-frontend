@@ -170,24 +170,32 @@ function Freshness({ range, generatedAt }: { range: RangeInfo; generatedAt?: str
   );
 }
 
+/** Light is the default, following system preference, until the reader
+ *  explicitly picks a side - so the page never carries a forced attribute
+ *  until someone actually clicks this. */
+function isCurrentlyDark(): boolean {
+  const attr = document.documentElement.getAttribute("data-theme");
+  if (attr === "light") return false;
+  if (attr === "dark") return true;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
 function ThemeToggle() {
-  const [theme, setTheme] = useState<"dark" | "light">(
-    () => (document.documentElement.dataset.theme as "dark" | "light") ?? "dark",
-  );
+  const [dark, setDark] = useState(isCurrentlyDark);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  }, [dark]);
 
   return (
     <button
       type="button"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-      title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+      onClick={() => setDark((value) => !value)}
+      aria-label={`Switch to ${dark ? "light" : "dark"} theme`}
+      title={`Switch to ${dark ? "light" : "dark"} theme`}
       className="rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface-1)] px-2.5 py-1.5 text-[12px] text-[var(--color-ink-muted)] transition hover:text-[var(--color-ink-2)]"
     >
-      {theme === "dark" ? "☾" : "☀"}
+      {dark ? "☾" : "☀"}
     </button>
   );
 }

@@ -14,14 +14,22 @@ import { deltaTone, RAG_META } from "@/lib/viz";
  */
 export function RagPill({ rag, compact = false }: { rag: Rag; compact?: boolean }) {
   const meta = RAG_META[rag];
+  if (compact) {
+    return (
+      <span
+        aria-hidden
+        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+        style={{ backgroundColor: meta.color }}
+        title={meta.label}
+      />
+    );
+  }
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium leading-none"
+      className="inline-flex items-center rounded-full px-[7px] py-[1px] text-[11px] font-bold leading-[1.6] whitespace-nowrap"
       style={{ color: meta.color, backgroundColor: meta.wash }}
     >
-      <span aria-hidden>{meta.glyph}</span>
-      {!compact && <span>{meta.label}</span>}
-      <span className="sr-only">{meta.label}</span>
+      {meta.label}
     </span>
   );
 }
@@ -62,63 +70,58 @@ export function KpiCard({
     <Wrapper
       {...(onClick ? { onClick, type: "button" as const } : {})}
       className={[
-        "panel group relative flex w-full flex-col gap-2 p-4 text-left transition",
+        "panel group relative flex w-full flex-col px-[13px] py-[11px] text-left transition",
         onClick ? "cursor-pointer hover:border-[var(--color-hairline-strong)]" : "",
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--color-ink-muted)]">
-          {label}
-        </span>
+        <span className="text-[12.5px] font-semibold text-[var(--color-ink-2)]">{label}</span>
         <RagPill rag={rag} />
       </div>
 
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-[30px] font-semibold leading-none tracking-tight text-[var(--color-ink)]">
+      <div className="mt-[1px] flex items-baseline gap-1.5">
+        <span className="text-[clamp(19px,2.3vw,25px)] font-extrabold leading-none tracking-[-0.01em] text-[var(--color-ink)]">
           {formatMetric(value, unit)}
         </span>
         {unit !== "INR" && (
-          <span className="text-[13px] text-[var(--color-ink-2)]">{unit}</span>
+          <span className="text-[13px] font-semibold text-[var(--color-ink-2)]">{unit}</span>
         )}
         {/* The tilde is a promise: this number is still settling and will be
             reconciled at shift close. The dashboard never silently revises. */}
         {provisional && (
           <span
             title="Provisional until the shift is reconciled against weighed waste"
-            className="ml-0.5 text-[15px] leading-none text-[var(--color-ink-muted)]"
+            className="text-[14px] font-bold leading-none text-[var(--color-ink-muted)]"
           >
             ~
           </span>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--color-ink-muted)]">
-        {target != null && (
+      <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[11.5px] text-[var(--color-ink-2)]">
+        {delta != null ? (
+          <span className="tnum font-bold" style={{ color: tone.color }}>
+            {tone.glyph} {formatMetric(Math.abs(delta), unit)}
+            <span className="font-normal text-[var(--color-ink-2)]"> vs prior</span>
+          </span>
+        ) : target != null ? (
           <span className="tnum">
             target {formatMetric(target, unit)}
             {lowerIsBetter ? " or less" : " or better"}
           </span>
-        )}
-        {delta != null && (
-          <span className="tnum inline-flex items-center gap-1" style={{ color: tone.color }}>
-            <span aria-hidden>{tone.glyph}</span>
-            {/* A delta wears the same unit as the value it moved, or a rupee
-                delta prints as a bare seven-digit number. */}
-            {formatMetric(Math.abs(delta), unit)}
-            <span className="text-[var(--color-ink-muted)]">vs prior</span>
-          </span>
+        ) : (
+          <span>{sub}</span>
         )}
         {seasonAdjusted && (
-          <span
-            title="Monsoon band applied - a seasonal dip here is expected, not a failure"
-            className="rounded bg-[var(--color-surface-3)] px-1.5 py-0.5"
-          >
+          <span className="rounded bg-[var(--color-surface-3)] px-1.5 py-0.5 text-[10.5px]" title="Monsoon band applied - a seasonal dip here is expected, not a failure">
             monsoon band
           </span>
         )}
       </div>
 
-      {sub ? <div className="text-[11px] text-[var(--color-ink-2)]">{sub}</div> : null}
+      {delta != null && sub ? (
+        <div className="mt-1 text-[11px] text-[var(--color-ink-2)]">{sub}</div>
+      ) : null}
       {footer}
     </Wrapper>
   );

@@ -79,12 +79,8 @@ function AlertRow({ alert }: { alert: Alert }) {
 
   return (
     <li className="group relative">
-      <div className="flex items-start gap-3 px-4 py-3">
-        <span
-          aria-hidden
-          className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-          style={{ backgroundColor: meta.color }}
-        />
+      <div className="flex items-stretch gap-[9px] px-4 py-2">
+        <span aria-hidden className="w-[3px] shrink-0 rounded-sm" style={{ backgroundColor: meta.color }} />
         <div className="min-w-0 flex-1">
           <button
             type="button"

@@ -4,7 +4,10 @@ import type { MachineState, Rag, Stage, TimeCategory } from "@/api/types";
  * The visual grammar, in one place.
  *
  * One chart form per question and one colour per meaning, used identically
- * everywhere - so learning one screen means learning all three.
+ * everywhere - so learning one screen means learning all three. Matched
+ * exactly to the plant-operations-dashboard reference: running is green,
+ * waiting is kraft brown (never confused with setup's amber), and every
+ * pareto/status colour comes from the same fixed set.
  */
 
 export const STAGES: Stage[] = ["board_manufacturing", "printing", "bundling"];
@@ -24,16 +27,16 @@ export const STAGE_BLURB: Record<Stage, string> = {
 /**
  * RAG never travels as colour alone.
  *
- * Every pill carries a glyph and a word as well as a hue, because two of the
- * four status colours sit below 3:1 on a light surface and because a
- * colour-blind reader should not have to guess. Grey is not a failure colour: it
- * means the value cannot be judged, which is a different statement from "bad".
+ * Every pill carries a word as well as a hue, because two of the four status
+ * colours sit below 3:1 on a light surface and because a colour-blind reader
+ * should not have to guess. Grey is not a failure colour: it means the value
+ * cannot be judged, which is a different statement from "bad".
  */
 export const RAG_META: Record<Rag, { label: string; glyph: string; color: string; wash: string }> = {
-  green: { label: "on target", glyph: "●", color: "var(--color-good)", wash: "rgb(12 163 12 / 0.12)" },
-  amber: { label: "watch", glyph: "◐", color: "var(--color-warning)", wash: "rgb(250 178 25 / 0.14)" },
-  red: { label: "off target", glyph: "▲", color: "var(--color-critical)", wash: "rgb(208 59 59 / 0.14)" },
-  grey: { label: "no reading", glyph: "○", color: "var(--color-ink-muted)", wash: "rgb(137 135 129 / 0.12)" },
+  green: { label: "on track", glyph: "●", color: "var(--color-good)", wash: "var(--color-good-soft)" },
+  amber: { label: "watch", glyph: "◐", color: "var(--color-warning)", wash: "var(--color-warning-soft)" },
+  red: { label: "off target", glyph: "▲", color: "var(--color-critical)", wash: "var(--color-critical-soft)" },
+  grey: { label: "no reading", glyph: "○", color: "var(--color-ink-muted)", wash: "var(--color-surface-3)" },
 };
 
 export const STATE_META: Record<
@@ -64,24 +67,27 @@ export const TIME_CATEGORY_META: Record<
   { label: string; color: string; planned: boolean }
 > = {
   running: { label: "Running", color: "var(--color-state-running)", planned: false },
-  // Planned time is grey, never red: painting a changeover the same colour as a
-  // breakdown is how a dashboard loses the shop floor.
+  // Planned time is never painted the same colour as a breakdown.
   setup: { label: "Setup / changeover", color: "var(--color-state-setup)", planned: true },
   breakdown: { label: "Breakdown", color: "var(--color-state-breakdown)", planned: false },
   waiting: { label: "Waiting", color: "var(--color-state-waiting)", planned: false },
   idle: { label: "Idle", color: "var(--color-state-idle)", planned: false },
 };
 
+/** One accent colour carries every "actual" line and bar; plan/budget is
+ *  always the same dashed grey. The reference does not use a categorical
+ *  palette - every chart is single-series. */
 export const SERIES = {
   actual: "var(--color-series-1)",
-  secondary: "var(--color-series-2)",
-  tertiary: "var(--color-series-3)",
-  plan: "var(--color-ink-muted)",
+  plan: "var(--color-plan)",
 } as const;
 
-/** A Pareto bar is red when the time was lost and grey when it was planned. */
-export function paretoColor(planned: boolean): string {
-  return planned ? "var(--color-state-setup)" : "var(--color-series-2)";
+/** A pareto bar is kraft when the loss is attributed upstream (e.g. bundling
+ *  starved by printing), grey when the time was planned, and red otherwise. */
+export function paretoColor(planned: boolean, attributedUpstream = false): string {
+  if (planned) return "var(--color-plan)";
+  if (attributedUpstream) return "var(--color-kraft)";
+  return "var(--color-critical)";
 }
 
 export function deltaTone(direction: string | null | undefined): {
@@ -102,14 +108,16 @@ export function deltaTone(direction: string | null | undefined): {
   }
 }
 
+/** The reference uses two alert severities (bad/warn); "type" still carries
+ *  four labels for context, but every one resolves to one of those two hues. */
 export const ALERT_META: Record<
   string,
   { label: string; color: string }
 > = {
   event: { label: "Event", color: "var(--color-critical)" },
-  breach: { label: "Breach", color: "var(--color-serious)" },
+  breach: { label: "Breach", color: "var(--color-critical)" },
   drift: { label: "Drift", color: "var(--color-warning)" },
-  pattern: { label: "Pattern", color: "var(--color-series-1)" },
+  pattern: { label: "Pattern", color: "var(--color-warning)" },
 };
 
 /** Shared Recharts chrome. Grid and axes stay recessive so the marks carry the

@@ -10,92 +10,145 @@
 @import "@fontsource/montserrat/500.css";
 @import "@fontsource/montserrat/600.css";
 @import "@fontsource/montserrat/700.css";
+@import "@fontsource/montserrat/800.css";
 
 /*
-  Design tokens.
+  Design tokens - matched to the Autonex admin-console reference: a clean
+  white-card SaaS palette on light neutral grey, indigo as the one brand
+  accent, and a small categorical set (green/amber/rose/violet) for status.
 
-  The dashboard is dark by default: its primary surface is the plant office, and
-  a control-room screen that runs all shift should not be a white rectangle in a
-  dim room. Light is a selected theme with its own steps from the same ramps -
-  not an automatic inversion.
-
-  Data colours come from a validated palette. The categorical slots and the
-  fixed status palette both cleared the colour-vision and contrast gates against
-  these exact surfaces; see README for the validator command. Two deliberate
-  exceptions, both required by the dashboard's own rules:
-    - Planned time (setup, planned maintenance) is grey, never red. A grey has
-      no chroma, so it fails a categorical chroma check by construction. Painting
-      a changeover the same colour as a breakdown is how a dashboard loses the
-      shop floor, so the grey stays and the relief is secondary encoding: every
-      segment carries a label, a legend, and a tooltip naming the state.
-    - Idle sits below 3:1 against the surface on purpose - it is the most
-      recessive state on the screen - and carries the same relief.
+  Light is the default, following system preference; dark is available via the
+  same [data-theme] toggle. One rule carried over from the plant-floor
+  reference: waiting time keeps its own hue (violet), never confused with
+  setup (amber) or breakdown (rose) - a shop floor needs to tell "waiting on
+  upstream" apart from "stopped for a reason we caused."
 */
 
 @theme {
-  --color-plane: #0d0d0d;
-  --color-surface-1: #17171a;
-  --color-surface-2: #1f1f23;
-  --color-surface-3: #27272c;
+  --color-plane: #f4f5f7;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #ffffff;
+  --color-surface-3: #eef0f4;
 
-  --color-ink: #ffffff;
-  --color-ink-2: #c3c2b7;
-  --color-ink-muted: #898781;
+  --color-ink: #171923;
+  --color-ink-2: #6b7280;
+  --color-ink-muted: #9ca3af;
 
-  --color-hairline: rgb(255 255 255 / 0.09);
-  --color-hairline-strong: rgb(255 255 255 / 0.16);
-  --color-grid: #2c2c2a;
-  --color-axis: #383835;
+  --color-hairline: #e5e7eb;
+  --color-hairline-strong: #d1d5db;
+  --color-grid: #e5e7eb;
+  --color-axis: #9ca3af;
 
   /* Status - fixed in both themes, never reused as a series colour. */
-  --color-good: #0ca30c;
-  --color-warning: #fab219;
-  --color-serious: #ec835a;
-  --color-critical: #d03b3b;
+  --color-good: #16a34a;
+  --color-good-soft: #dcfce7;
+  --color-warning: #d97706;
+  --color-warning-soft: #fef3c7;
+  --color-critical: #e11d48;
+  --color-critical-soft: #ffe4e9;
 
-  /* Categorical series, dark steps. */
-  --color-series-1: #3987e5;
-  --color-series-2: #d95926;
-  --color-series-3: #199e70;
+  /* The one accent colour, used for the actual-vs-plan line, links and focus. */
+  --color-series-1: #4f46e5;
+  --color-series-1-soft: #eef2ff;
+  --color-plan: #9ca3af;
+
+  /* Violet: waiting time, and the AI-suggestion impact figure. */
+  --color-kraft: #7c3aed;
+  --color-kraft-soft: #ede9fe;
 
   /* Machine / time states. */
-  --color-state-running: #3987e5;
-  --color-state-setup: #898781;
-  --color-state-breakdown: #d03b3b;
-  --color-state-waiting: #c98500;
-  --color-state-idle: #5f5f58;
-  --color-state-nodata: #4a4a46;
+  --color-state-running: #16a34a;
+  --color-state-setup: #d97706;
+  --color-state-breakdown: #e11d48;
+  --color-state-waiting: #7c3aed;
+  --color-state-idle: #eef0f4;
+  --color-state-nodata: #9ca3af;
 
-  --font-sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-title: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-title: "Montserrat", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+
+  --shadow-panel: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px -4px rgba(16, 24, 40, 0.1);
 }
 
-:root[data-theme="light"] {
-  --color-plane: #f2f2ef;
-  --color-surface-1: #fcfcfb;
-  --color-surface-2: #ffffff;
-  --color-surface-3: #f0efec;
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-plane: #0f1117;
+    --color-surface-1: #171923;
+    --color-surface-2: #1e2029;
+    --color-surface-3: #262935;
 
-  --color-ink: #0b0b0b;
-  --color-ink-2: #52514e;
-  --color-ink-muted: #75736d;
+    --color-ink: #f3f4f6;
+    --color-ink-2: #9ca3af;
+    --color-ink-muted: #6b7280;
 
-  --color-hairline: rgb(11 11 11 / 0.1);
-  --color-hairline-strong: rgb(11 11 11 / 0.18);
-  --color-grid: #e1e0d9;
-  --color-axis: #c3c2b7;
+    --color-hairline: #2a2d38;
+    --color-hairline-strong: #363944;
+    --color-grid: #2a2d38;
+    --color-axis: #6b7280;
 
-  --color-series-1: #2a78d6;
-  --color-series-2: #eb6834;
-  --color-series-3: #1baf7a;
+    --color-good: #22c55e;
+    --color-good-soft: #14291d;
+    --color-warning: #f59e0b;
+    --color-warning-soft: #2e2410;
+    --color-critical: #fb7185;
+    --color-critical-soft: #34141c;
 
-  --color-state-running: #2a78d6;
-  --color-state-setup: #898781;
-  --color-state-breakdown: #d03b3b;
-  --color-state-waiting: #eda100;
-  --color-state-idle: #b5b3ab;
-  --color-state-nodata: #cbc9c1;
+    --color-series-1: #6366f1;
+    --color-series-1-soft: #1e2246;
+    --color-plan: #6b7280;
+
+    --color-kraft: #a78bfa;
+    --color-kraft-soft: #2c2444;
+
+    --color-state-running: #22c55e;
+    --color-state-setup: #f59e0b;
+    --color-state-breakdown: #fb7185;
+    --color-state-waiting: #a78bfa;
+    --color-state-idle: #262935;
+    --color-state-nodata: #6b7280;
+
+    --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-plane: #0f1117;
+  --color-surface-1: #171923;
+  --color-surface-2: #1e2029;
+  --color-surface-3: #262935;
+
+  --color-ink: #f3f4f6;
+  --color-ink-2: #9ca3af;
+  --color-ink-muted: #6b7280;
+
+  --color-hairline: #2a2d38;
+  --color-hairline-strong: #363944;
+  --color-grid: #2a2d38;
+  --color-axis: #6b7280;
+
+  --color-good: #22c55e;
+  --color-good-soft: #14291d;
+  --color-warning: #f59e0b;
+  --color-warning-soft: #2e2410;
+  --color-critical: #fb7185;
+  --color-critical-soft: #34141c;
+
+  --color-series-1: #6366f1;
+  --color-series-1-soft: #1e2246;
+  --color-plan: #6b7280;
+
+  --color-kraft: #a78bfa;
+  --color-kraft-soft: #2c2444;
+
+  --color-state-running: #22c55e;
+  --color-state-setup: #f59e0b;
+  --color-state-breakdown: #fb7185;
+  --color-state-waiting: #a78bfa;
+  --color-state-idle: #262935;
+  --color-state-nodata: #6b7280;
+
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
 }
 
 html,
@@ -109,12 +162,13 @@ body {
   background: var(--color-plane);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Titles (headings and the brand mark) carry the display font; every other
-   label, value and table cell stays in the text font, including inside a
-   heading's own descendants unless they are headings themselves. */
+/* Titles carry the same Barlow family, at heavier weight; every other label,
+   value and table cell stays at regular/medium weight. */
 h1,
 h2,
 h3,
@@ -123,6 +177,8 @@ h5,
 h6,
 .font-title {
   font-family: var(--font-title);
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 /* Figures that sit in columns must align; standalone numbers should not be
@@ -136,6 +192,7 @@ h6,
   background: var(--color-surface-1);
   border: 1px solid var(--color-hairline);
   border-radius: 14px;
+  box-shadow: var(--shadow-panel);
 }
 
 /* The live pulse on a running machine. Motion is reserved for one thing -

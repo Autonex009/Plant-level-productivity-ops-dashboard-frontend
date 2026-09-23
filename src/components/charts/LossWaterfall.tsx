@@ -6,13 +6,11 @@ import { ChartFrame, EmptyPlot } from "./ChartFrame";
 /**
  * Where did the potential go?
  *
- * 100% → minus not-running → minus ran-slow → minus rejected → delivered. This
- * is the productivity card expanded into a picture: three named, sized, ownable
- * losses rather than one composite percentage nobody can act on.
- *
- * Drawn as plain elements rather than a charting primitive - a waterfall is a
- * sequence of positioned bars, and hand-drawing it keeps the floating segments
- * exactly on their running total.
+ * A funnel of shrinking bars: Potential (100%) narrows through each named
+ * loss down to Delivered. Matches the reference exactly - a stack of
+ * horizontal rows whose width is the running total after that loss, not a
+ * floating waterfall chart, because the running total *is* the story: read
+ * the shrink, not a bar's offset from zero.
  */
 export function LossWaterfall({
   steps,
@@ -31,102 +29,63 @@ export function LossWaterfall({
     );
   }
 
-  // Walk the steps to find where each floating bar starts and ends.
   let running = 0;
-  const bars = steps.map((step) => {
-    if (step.kind === "total") {
-      const bar = { step, from: 0, to: step.value, floating: false };
-      running = step.value;
-      return bar;
-    }
-    const to = running;
-    running += step.value; // losses arrive negative
-    return { step, from: running, to, floating: true };
+  const rows = steps.map((step) => {
+    running = step.kind === "total" ? step.value : running + step.value;
+    return { step, remaining: running };
   });
-
-  const LOSS_COLOR: Record<string, string> = {
-    not_running: "var(--color-state-breakdown)",
-    ran_slow: "var(--color-state-waiting)",
-    rejected: "var(--color-serious)",
-  };
+  const potential = rows[0]?.remaining || 100;
 
   return (
     <ChartFrame
       title="Loss waterfall"
       question="Where did the potential go?"
-      height={232}
       note="Each loss is named and sized so it has an owner. Click a loss to open its causes."
     >
-      <div className="flex h-full items-stretch gap-2">
-        {bars.map(({ step, from, to, floating }) => {
-          const height = Math.abs(to - from);
-          const color = floating
-            ? (LOSS_COLOR[step.key] ?? "var(--color-state-breakdown)")
-            : step.key === "delivered"
+      <div className="flex flex-col gap-2.5">
+        {rows.map(({ step, remaining }, index) => {
+          const isFirst = index === 0;
+          const isLast = index === rows.length - 1;
+          const color = isFirst
+            ? "var(--color-surface-3)"
+            : isLast
               ? "var(--color-good)"
-              : "var(--color-surface-3)";
-          const clickable = floating && onSelectLoss;
+              : step.key === "not_running"
+                ? "var(--color-critical-soft)"
+                : "var(--color-warning-soft)";
+          const widthPct = potential ? Math.max((remaining / potential) * 100, 2) : 2;
+          const clickable = !isFirst && !isLast && Boolean(onSelectLoss);
 
           return (
-            <div key={step.key} className="flex min-w-0 flex-1 flex-col">
-              <div className="relative flex-1">
-                <button
-                  type="button"
-                  disabled={!clickable}
-                  onClick={() => clickable && onSelectLoss(step)}
-                  title={
-                    step.owner
-                      ? `${step.label} — owned by ${step.owner}`
-                      : `${step.label} ${formatNumber(step.value, 1)}%`
-                  }
-                  className={[
-                    "absolute inset-x-0 rounded-[4px] transition",
-                    clickable ? "cursor-pointer hover:brightness-125" : "cursor-default",
-                  ].join(" ")}
-                  style={{
-                    backgroundColor: color,
-                    bottom: `${Math.min(from, to)}%`,
-                    height: `${Math.max(height, 0.8)}%`,
-                    // A 2px surface gap keeps adjacent fills from fusing.
-                    outline: "2px solid var(--color-surface-1)",
-                  }}
+            <button
+              key={step.key}
+              type="button"
+              disabled={!clickable}
+              onClick={() => clickable && onSelectLoss?.(step)}
+              title={step.owner ? `${step.label} — owned by ${step.owner}` : step.label}
+              className={[
+                "flex items-center gap-2.5 text-left text-[12px]",
+                isLast ? "font-semibold text-[var(--color-ink)]" : "text-[var(--color-ink-2)]",
+                clickable ? "cursor-pointer" : "cursor-default",
+              ].join(" ")}
+            >
+              <span className="w-24 shrink-0 truncate sm:w-28">{step.label}</span>
+              <span className="h-3 max-w-[60%] flex-1">
+                <span
+                  className="block h-full rounded transition-all"
+                  style={{ width: `${widthPct}%`, backgroundColor: color }}
                 />
-                {/* Value sits above its own bar - selective direct labelling,
-                    not a number on every tick. A bar that reaches the top of the
-                    plot has no room above it, so its label moves inside rather
-                    than escaping into the chart header. */}
-                {(() => {
-                  const top = Math.max(from, to);
-                  const inside = top > 88;
-                  return (
-                    <span
-                      className={[
-                        "tnum pointer-events-none absolute inset-x-0 text-center text-[11px] font-medium",
-                        inside ? "text-white mix-blend-luminosity" : "text-[var(--color-ink)]",
-                      ].join(" ")}
-                      style={
-                        inside
-                          ? { top: `calc(${100 - top}% + 6px)` }
-                          : { bottom: `calc(${top}% + 4px)` }
-                      }
-                    >
-                      {formatNumber(step.value, 1)}
-                    </span>
-                  );
-                })()}
-              </div>
-
-              <div className="mt-2 min-w-0 text-center">
-                <span className="block truncate text-[11px] text-[var(--color-ink-2)]">
-                  {step.label}
+              </span>
+              <span className="tnum w-16 shrink-0 text-right">
+                {step.value > 0 && !isFirst && !isLast ? "+" : ""}
+                {formatNumber(step.value, 1)}%
+              </span>
+              {step.owner && (
+                <span className="hidden shrink-0 truncate text-[11px] text-[var(--color-ink-muted)] sm:block">
+                  {step.owner}
                 </span>
-                {step.owner && (
-                  <span className="block truncate text-[10px] text-[var(--color-ink-muted)]">
-                    {step.owner}
-                  </span>
-                )}
-              </div>
-            </div>
+              )}
+            </button>
           );
         })}
       </div>

@@ -4,18 +4,42 @@ import { Link, useLocation } from "react-router-dom";
 import { useRange } from "@/lib/useRange";
 
 /**
- * The persistent module rail. Each item is a distinct question ("what's
- * happening" / "how efficient are we" / "what state is every machine in" /
- * "what needs a decision" / "what is this plant configured with"), not
- * several views of the same problem - the down-and-back rule inside a module
- * (Plant → stage → specifics) is unchanged, this just adds the layer above it.
+ * The persistent module rail, matched exactly to the reference's five
+ * sections and subtitles. Each is a distinct question, not several views of
+ * the same problem - the down-and-back rule inside a module (Plant → stage →
+ * specifics) is unchanged, this just adds the layer above it.
  */
-const NAV_ITEMS: { to: string; label: string; icon: (props: { className?: string }) => ReactNode }[] = [
-  { to: "/", label: "Overview", icon: OverviewIcon },
-  { to: "/production-efficiency", label: "Production Efficiency", icon: EfficiencyIcon },
-  { to: "/machine-monitoring", label: "Machine Monitoring", icon: MonitoringIcon },
-  { to: "/review", label: "Review", icon: ReviewIcon },
-  { to: "/settings", label: "Settings", icon: SettingsIcon },
+const NAV_ITEMS: {
+  to: string;
+  label: string;
+  sub: string;
+  icon: (props: { className?: string }) => ReactNode;
+}[] = [
+  { to: "/", label: "Overview", sub: "plant health at a glance", icon: OverviewIcon },
+  {
+    to: "/production-efficiency",
+    label: "Production Efficiency",
+    sub: "stages, hours, causes",
+    icon: EfficiencyIcon,
+  },
+  {
+    to: "/machine-monitoring",
+    label: "Machine Monitoring",
+    sub: "live states and parameters",
+    icon: MonitoringIcon,
+  },
+  {
+    to: "/analytics",
+    label: "Analytics and AI Suggestions",
+    sub: "trends and what to fix next",
+    icon: AIIcon,
+  },
+  {
+    to: "/settings",
+    label: "Settings and Review",
+    sub: "targets, codes, reconciliation",
+    icon: SettingsIcon,
+  },
 ];
 
 export function Sidebar() {
@@ -24,44 +48,51 @@ export function Sidebar() {
 
   return (
     <nav
-      aria-label="Modules"
-      className="hidden w-56 shrink-0 flex-col border-r border-[var(--color-hairline)] bg-[var(--color-surface-1)] px-3 py-4 lg:flex"
+      aria-label="Sections"
+      className="hidden w-52 shrink-0 flex-col gap-[3px] border-r border-[var(--color-hairline)] bg-[var(--color-surface-1)] p-2 lg:flex"
     >
-      <div className="mb-4 px-2">
-        <span className="font-title block text-[15px] font-semibold text-[var(--color-ink)]">
+      <div className="mb-3 px-2 pt-1">
+        <span className="font-title block text-[17px] font-bold text-[var(--color-ink)]">
           Plant Ops
         </span>
-        <span className="block text-[11px] text-[var(--color-ink-muted)]">Corrugation dashboard</span>
+        <span className="block text-[12px] text-[var(--color-ink-2)]">Corrugation dashboard</span>
       </div>
 
-      <ul className="flex flex-col gap-1">
-        {NAV_ITEMS.map((item) => {
-          const active = location.pathname === item.to;
-          const Icon = item.icon;
-          return (
-            <li key={item.to}>
-              <Link
-                to={withRange(item.to)}
-                aria-current={active ? "page" : undefined}
+      {NAV_ITEMS.map((item) => {
+        const active = location.pathname === item.to;
+        const Icon = item.icon;
+        return (
+          <Link
+            key={item.to}
+            to={withRange(item.to)}
+            aria-current={active ? "page" : undefined}
+            className={[
+              "flex items-center gap-2.5 rounded-[9px] px-[11px] py-[9px] text-[13.5px] font-semibold transition",
+              active
+                ? "bg-[var(--color-series-1-soft)] text-[var(--color-series-1)]"
+                : "text-[var(--color-ink-2)] hover:bg-[var(--color-surface-3)]",
+            ].join(" ")}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">
+              {item.label}
+              <span
                 className={[
-                  "flex items-center gap-2.5 rounded-xl border px-3 py-2 text-[13px] transition",
-                  active
-                    ? "border-[var(--color-series-1)]/50 bg-[var(--color-series-1)]/10 font-medium text-[var(--color-ink)]"
-                    : "border-transparent text-[var(--color-ink-2)] hover:border-[var(--color-hairline)] hover:bg-[var(--color-surface-2)]",
+                  "block truncate text-[11px] font-medium",
+                  active ? "text-[var(--color-series-1)]" : "text-[var(--color-ink-muted)]",
                 ].join(" ")}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+                {item.sub}
+              </span>
+            </span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }
 
-/** The same three modules as a horizontal strip, for narrow screens where a
+/** The same sections as a horizontal strip, for narrow screens where a
  *  persistent rail would cost more width than it is worth. */
 export function MobileModuleTabs() {
   const location = useLocation();
@@ -70,7 +101,7 @@ export function MobileModuleTabs() {
   return (
     <div
       role="tablist"
-      aria-label="Modules"
+      aria-label="Sections"
       className="flex items-center gap-1 overflow-x-auto rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface-1)] p-1 lg:hidden"
     >
       {NAV_ITEMS.map((item) => {
@@ -82,9 +113,9 @@ export function MobileModuleTabs() {
             role="tab"
             aria-selected={active}
             className={[
-              "shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[12px] transition",
+              "shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[12px] font-semibold transition",
               active
-                ? "bg-[var(--color-surface-3)] font-medium text-[var(--color-ink)]"
+                ? "bg-[var(--color-series-1-soft)] text-[var(--color-series-1)]"
                 : "text-[var(--color-ink-muted)] hover:text-[var(--color-ink-2)]",
             ].join(" ")}
           >
@@ -143,18 +174,16 @@ function MonitoringIcon({ className }: { className?: string }) {
   );
 }
 
-function ReviewIcon({ className }: { className?: string }) {
+function AIIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden>
-      <rect x="4" y="3" width="12" height="14" rx="1.6" stroke="currentColor" strokeWidth="1.4" />
       <path
-        d="M6.8 9.6 8.6 11.4 13.2 6.8"
+        d="M10 2.5 11.4 6.6 15.5 8l-4.1 1.4L10 13.5 8.6 9.4 4.5 8l4.1-1.4L10 2.5Z"
         stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
+        strokeWidth="1.3"
         strokeLinejoin="round"
       />
-      <path d="M7 13.6h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M15.5 12v3.5M13.75 13.75h3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   );
 }

@@ -1,10 +1,10 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { MobileModuleTabs, Sidebar } from "@/components/Sidebar";
+import { Analytics } from "@/pages/Analytics";
 import { MachineMonitoring } from "@/pages/MachineMonitoring";
 import { PlantView } from "@/pages/PlantView";
 import { ProductionEfficiency } from "@/pages/ProductionEfficiency";
-import { Review } from "@/pages/Review";
 import { Settings } from "@/pages/Settings";
 import { StageSpecifics } from "@/pages/StageSpecifics";
 import { StageView } from "@/pages/StageView";
@@ -30,7 +30,7 @@ export default function App() {
           <Route path="/" element={<PlantView />} />
           <Route path="/production-efficiency" element={<ProductionEfficiency />} />
           <Route path="/machine-monitoring" element={<MachineMonitoring />} />
-          <Route path="/review" element={<Review />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/stage/:stage" element={<StageView />} />
           <Route path="/stage/:stage/specifics" element={<StageSpecifics />} />

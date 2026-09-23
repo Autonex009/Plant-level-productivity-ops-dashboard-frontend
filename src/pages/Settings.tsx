@@ -1,25 +1,22 @@
 import type { ReactNode } from "react";
 
 import {
-  useDefectReasonCodeRecords,
   useDowntimeReasonCodeRecords,
   useMachineRecords,
   useMetricDefinitionRecords,
   usePlantMetricTargetRecords,
   usePlantRecord,
+  useShiftReconciliation,
 } from "@/api/settings";
 import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
 import { formatMetric, formatNumber } from "@/lib/format";
 import { STAGE_LABEL } from "@/lib/viz";
 
 /**
- * Settings - what this plant is configured with.
- *
- * Read-only for now: the plant, its machines, the reference performance level
- * set for each metric (target / red line / control band), and the reason-code
- * catalogs that classification and the Review inbox draw from. Editing these
- * is the natural next step; this page exists first so the numbers everywhere
- * else are traceable to a baseline someone can actually see.
+ * Settings and Review - targets, reason codes, and the shift reconciliation
+ * that keeps every number honest. Matched panel-for-panel to the reference:
+ * targets/RAG bands, reconciliation, downtime reason codes, and the refresh
+ * cadence. Editable by the plant head role; read-only here.
  */
 export function Settings() {
   const plant = usePlantRecord();
@@ -27,16 +24,11 @@ export function Settings() {
   const metricDefinitions = useMetricDefinitionRecords();
   const targets = usePlantMetricTargetRecords();
   const downtimeCodes = useDowntimeReasonCodeRecords();
-  const defectCodes = useDefectReasonCodeRecords();
+  const recon = useShiftReconciliation(5);
 
-  const crumbs = [{ label: "Settings" }];
+  const crumbs = [{ label: "Settings and Review" }];
   const anyPending =
-    plant.isPending ||
-    machines.isPending ||
-    metricDefinitions.isPending ||
-    targets.isPending ||
-    downtimeCodes.isPending ||
-    defectCodes.isPending;
+    plant.isPending || machines.isPending || metricDefinitions.isPending || targets.isPending;
 
   if (anyPending) {
     return (
@@ -54,14 +46,20 @@ export function Settings() {
   }
 
   const metricById = new Map((metricDefinitions.data ?? []).map((metric) => [metric.id, metric]));
+  // The reference's targets table covers KPIs, not raw operating parameters -
+  // those get their own band strips in Machine Monitoring.
+  const kpiTargets = (targets.data ?? []).filter(
+    (target) => metricById.get(target.metric_definition_id)?.category !== "parameters",
+  );
 
   return (
     <Shell crumbs={crumbs}>
-      <div className="flex flex-col gap-4">
-        <div className="rounded-xl border border-[var(--color-warning)]/30 bg-[var(--color-surface-1)] px-4 py-2.5 text-[12px] text-[var(--color-ink-2)]">
-          Read-only for now. Changing a target, a band, or a reason code means
-          editing it through the API directly.
-        </div>
+      <div className="flex flex-col gap-3">
+        <p className="text-[13px] text-[var(--color-ink-2)]">
+          Targets, reason codes, and the shift reconciliation that keeps every number honest.
+          Read-only for now — changing a target, a band, or a reason code means editing it through
+          the API directly.
+        </p>
 
         <Section title="Plant">
           {plant.data && (
@@ -95,36 +93,68 @@ export function Settings() {
           )}
         </Section>
 
-        <Section title="Metric targets" subtitle="Reference performance level, set per plant baseline">
-          {targets.isError ? (
-            <ErrorPanel error={targets.error} />
-          ) : (
-            <Table
-              columns={["Metric", "Stage", "Target", "Red line", "Control band", "Effective from"]}
-              rows={(targets.data ?? []).map((target) => {
-                const metric = metricById.get(target.metric_definition_id);
-                const unit = metric?.unit ?? "";
-                const isMoney = unit.toUpperCase() === "INR";
-                const withUnit = (value: number) =>
-                  isMoney ? formatMetric(value, "INR") : `${formatNumber(value, 1)} ${unit}`;
-                const hasBand = target.band_low != null && target.band_high != null;
-                return [
-                  metric?.name ?? `#${target.metric_definition_id}`,
-                  metric?.stage ? STAGE_LABEL[metric.stage] : "Plant-wide",
-                  withUnit(target.target_value),
-                  target.red_line_value != null ? withUnit(target.red_line_value) : "--",
-                  hasBand
-                    ? `${formatNumber(target.band_low, 1)} - ${formatNumber(target.band_high, 1)}`
-                    : "--",
-                  target.effective_from,
-                ];
-              })}
-            />
-          )}
-        </Section>
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <Section
+            title="Targets and RAG bands"
+            hint="Green at or better than target; red beyond the red line; amber between. Set from the plant baseline at onboarding, reviewed quarterly."
+          >
+            {targets.isError ? (
+              <ErrorPanel error={targets.error} />
+            ) : (
+              <Table
+                columns={["KPI", "Target", "Red line", "Seasonal band"]}
+                rows={kpiTargets.map((target) => {
+                  const metric = metricById.get(target.metric_definition_id);
+                  const isMoney = (metric?.unit ?? "").toUpperCase() === "INR";
+                  const withUnit = (value: number) =>
+                    isMoney ? formatMetric(value, "INR") : `${formatNumber(value, 1)} ${metric?.unit ?? ""}`;
+                  const name = metric?.stage
+                    ? `${metric.name}, ${STAGE_LABEL[metric.stage].toLowerCase()}`
+                    : (metric?.name ?? `#${target.metric_definition_id}`);
+                  const seasonal =
+                    target.monsoon_band_low != null && target.monsoon_band_high != null
+                      ? `${formatNumber(target.monsoon_band_low, 1)}-${formatNumber(target.monsoon_band_high, 1)} Jun-Sep`
+                      : "-";
+                  return [
+                    name,
+                    withUnit(target.target_value),
+                    target.red_line_value != null ? withUnit(target.red_line_value) : "-",
+                    seasonal,
+                  ];
+                })}
+              />
+            )}
+          </Section>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Section title="Downtime reason codes">
+          <Section
+            title="Shift reconciliation review"
+            hint="Paper in = board out + weighed waste, within moisture allowance. Figures turn solid only after this closes; the gap itself is a data-quality metric."
+          >
+            {recon.isPending ? (
+              <p className="text-[12px] text-[var(--color-ink-muted)]">Reading recent shifts…</p>
+            ) : recon.isError ? (
+              <ErrorPanel error={recon.error} />
+            ) : (
+              <Table
+                columns={["Shift", "Paper in", "Board out", "Waste", "Gap", "Status"]}
+                rows={(recon.data ?? []).map((row) => [
+                  row.label,
+                  row.paperInKg ? `${formatNumber(row.paperInKg / 1000, 1)} t` : "-",
+                  row.boardOutKg ? `${formatNumber(row.boardOutKg / 1000, 1)} t` : "-",
+                  row.paperInKg ? `${formatNumber(row.wasteKg / 1000, 2)} t` : "-",
+                  row.gapPct != null ? `${formatNumber(row.gapPct, 1)}%` : "-",
+                  row.status === "reconciled" ? "reconciled" : "provisional ~",
+                ])}
+              />
+            )}
+          </Section>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <Section
+            title="Downtime reason codes"
+            hint="One owner per code, planned never mixed with unplanned. If Unclassified passes 5% of minutes in a week, this table gets reviewed."
+          >
             {downtimeCodes.isError ? (
               <ErrorPanel error={downtimeCodes.error} />
             ) : (
@@ -139,19 +169,18 @@ export function Settings() {
             )}
           </Section>
 
-          <Section title="Defect reason codes">
-            {defectCodes.isError ? (
-              <ErrorPanel error={defectCodes.error} />
-            ) : (
-              <Table
-                columns={["Code", "Description", "Stage"]}
-                rows={(defectCodes.data ?? []).map((code) => [
-                  code.code,
-                  code.description,
-                  STAGE_LABEL[code.stage],
-                ])}
-              />
-            )}
+          <Section title="Data and refresh">
+            <Table
+              columns={["", ""]}
+              rows={[
+                ["Status and machine tiles", "every 2-3 min"],
+                ["Cards, charts, alerts", "every 10-15 min"],
+                ["Reconciliation", "at shift close"],
+                ["Drift escalation to Overview", "after 60 min unacknowledged"],
+                ["Monsoon bands active", "Jun-Sep"],
+              ]}
+              hideHead
+            />
           </Section>
         </div>
       </div>
@@ -161,20 +190,20 @@ export function Settings() {
 
 function Section({
   title,
-  subtitle,
+  hint,
   children,
 }: {
   title: string;
-  subtitle?: string;
+  hint?: string;
   children: ReactNode;
 }) {
   return (
     <section className="panel flex flex-col overflow-hidden">
-      <div className="border-b border-[var(--color-hairline)] px-4 py-3">
-        <h2 className="text-[13px] font-semibold text-[var(--color-ink)]">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-[11px] text-[var(--color-ink-muted)]">{subtitle}</p>}
+      <div className="border-b border-[var(--color-hairline)] px-[15px] py-[13px]">
+        <h2 className="text-[15px] font-bold text-[var(--color-ink)]">{title}</h2>
+        {hint && <p className="mt-0.5 text-[12.5px] text-[var(--color-ink-muted)]">{hint}</p>}
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-[15px]">{children}</div>
     </section>
   );
 }
@@ -188,29 +217,42 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Table({ columns, rows }: { columns: string[]; rows: string[][] }) {
+function Table({
+  columns,
+  rows,
+  hideHead = false,
+}: {
+  columns: string[];
+  rows: string[][];
+  hideHead?: boolean;
+}) {
   if (!rows.length) {
     return <p className="text-[12px] text-[var(--color-ink-muted)]">Nothing configured yet.</p>;
   }
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[12px]">
-        <thead>
-          <tr className="text-left text-[var(--color-ink-muted)]">
-            {columns.map((column) => (
-              <th key={column} className="py-1 pr-4 font-normal">
-                {column}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="tnum">
+      <table className="w-full text-[13px]">
+        {!hideHead && (
+          <thead>
+            <tr className="text-left text-[var(--color-ink-2)]">
+              {columns.map((column, i) => (
+                <th key={i} className="border-b border-[var(--color-hairline)] py-[5px] pr-4 font-semibold">
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+        )}
+        <tbody>
           {rows.map((row, index) => (
-            <tr key={index} className="border-t border-[var(--color-hairline)] text-[var(--color-ink-2)]">
+            <tr key={index} className="border-b border-[var(--color-hairline)] last:border-0">
               {row.map((cell, cellIndex) => (
                 <td
                   key={cellIndex}
-                  className={cellIndex === 0 ? "py-1.5 pr-4 text-[var(--color-ink)]" : "py-1.5 pr-4"}
+                  className={[
+                    "py-[6px] pr-4 align-top",
+                    cellIndex === 0 ? "font-semibold text-[var(--color-ink)]" : "text-[var(--color-ink-2)]",
+                  ].join(" ")}
                 >
                   {cell}
                 </td>
