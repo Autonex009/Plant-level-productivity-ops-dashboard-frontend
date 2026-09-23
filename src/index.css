@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Text font. */
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
+
+/* Title font. */
+@import "@fontsource/montserrat/500.css";
+@import "@fontsource/montserrat/600.css";
+@import "@fontsource/montserrat/700.css";
+
 /*
   Design tokens.
 
@@ -55,7 +66,8 @@
   --color-state-idle: #5f5f58;
   --color-state-nodata: #4a4a46;
 
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-title: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
 }
 
@@ -98,6 +110,19 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Titles (headings and the brand mark) carry the display font; every other
+   label, value and table cell stays in the text font, including inside a
+   heading's own descendants unless they are headings themselves. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-title {
+  font-family: var(--font-title);
 }
 
 /* Figures that sit in columns must align; standalone numbers should not be

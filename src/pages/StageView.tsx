@@ -4,6 +4,7 @@ import { useStageView } from "@/api/queries";
 import type { ChartPayload, MachineTile, OrderCard, Stage } from "@/api/types";
 import { AlertPanel } from "@/components/AlertPanel";
 import { KpiCard } from "@/components/KpiCard";
+import { MachineTileCard } from "@/components/MachineTileCard";
 import { ProcessFlow } from "@/components/ProcessFlow";
 import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
 import { ChartFrame } from "@/components/charts/ChartFrame";
@@ -12,9 +13,9 @@ import { Pareto } from "@/components/charts/Pareto";
 import { StarvationTimeline } from "@/components/charts/StarvationTimeline";
 import { TimeSplitStrip } from "@/components/charts/TimeSplitStrip";
 import { TrendLine } from "@/components/charts/TrendLine";
-import { formatMinutes, formatNumber } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
 import { useRange } from "@/lib/useRange";
-import { STAGE_LABEL, STAGES, STATE_META } from "@/lib/viz";
+import { STAGE_LABEL, STAGES } from "@/lib/viz";
 
 /**
  * Level 2 - the stage view. "Which part of Boarding, Printing or Bundling is
@@ -176,58 +177,9 @@ function ContextRow({
     <section className="panel grid grid-cols-1 gap-4 p-4 lg:grid-cols-[1.4fr_1fr_auto]">
       {/* Machine scoreboard: one tile per machine. */}
       <div className="flex flex-wrap gap-2">
-        {machines.map((machine) => {
-          const meta = STATE_META[machine.state];
-          return (
-            <div
-              key={machine.machine_id}
-              className="min-w-[178px] flex-1 rounded-xl border border-[var(--color-hairline)] bg-[var(--color-surface-2)] px-3 py-2.5"
-            >
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5 items-center justify-center">
-                  <span
-                    className={`absolute inset-0 rounded-full ${machine.state === "running" ? "pulse" : ""}`}
-                    style={{ color: meta.color }}
-                  />
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: meta.color }}
-                  />
-                </span>
-                <span className="truncate text-[12px] font-semibold text-[var(--color-ink)]">
-                  {machine.machine_code}
-                </span>
-                <span className="ml-auto text-[11px]" style={{ color: meta.color }}>
-                  {meta.label}
-                </span>
-              </div>
-
-              <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className="tnum text-[19px] font-semibold leading-none text-[var(--color-ink)]">
-                  {machine.rate != null ? formatNumber(machine.rate, machine.rate >= 1000 ? 0 : 1) : "--"}
-                </span>
-                <span className="text-[11px] text-[var(--color-ink-muted)]">
-                  {machine.rate_unit}
-                </span>
-                {/* The actual only means something beside the budgeted rate. */}
-                {machine.standard_rate != null && (
-                  <span className="tnum ml-auto text-[11px] text-[var(--color-ink-2)]">
-                    {machine.rate_vs_standard_pct != null
-                      ? `${machine.rate_vs_standard_pct}% of std`
-                      : `std ${formatNumber(machine.standard_rate, 0)}`}
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-1 truncate text-[11px] text-[var(--color-ink-muted)]">
-                {machine.state !== "running" && machine.minutes_in_state != null
-                  ? `${formatMinutes(machine.minutes_in_state)} in state`
-                  : machine.name}
-                {machine.reason_code ? ` · ${machine.reason_code.description}` : ""}
-              </div>
-            </div>
-          );
-        })}
+        {machines.map((machine) => (
+          <MachineTileCard key={machine.machine_id} machine={machine} />
+        ))}
       </div>
 
       {/* The order card - the fairness device. */}
