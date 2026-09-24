@@ -4,6 +4,10 @@
     {
       "source": "/api/(.*)",
       "destination": "https://plant-ops-backend.vercel.app/api/$1"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }
