@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 
-import { useStageSpecifics, useStageView } from "@/api/queries";
+import { REFRESH, useStageSpecifics, useStageView } from "@/api/queries";
 import type { Stage } from "@/api/types";
 import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
 import { BandStrip } from "@/components/charts/BandStrip";
 import { ChartFrame } from "@/components/charts/ChartFrame";
 import { MachineTileCard } from "@/components/MachineTileCard";
+import { ProcessDiagram } from "@/components/ProcessDiagram";
 import { ProcessFlow } from "@/components/ProcessFlow";
 import { useRange } from "@/lib/useRange";
 import { STAGE_LABEL, STAGES } from "@/lib/viz";
@@ -21,9 +22,13 @@ import { STAGE_LABEL, STAGES } from "@/lib/viz";
 export function MachineMonitoring() {
   const { range, withRange } = useRange();
 
-  const boarding = useStageView("board_manufacturing", range);
-  const printing = useStageView("printing", range);
-  const bundling = useStageView("bundling", range);
+  // This page's whole job is "what is happening right now" - the live
+  // process diagram lives here, so it polls faster than the 2-3 minute spec
+  // cadence used everywhere else useStageView is called.
+  const liveOptions = { refetchInterval: REFRESH.demo };
+  const boarding = useStageView("board_manufacturing", range, liveOptions);
+  const printing = useStageView("printing", range, liveOptions);
+  const bundling = useStageView("bundling", range, liveOptions);
 
   const boardingSpecifics = useStageSpecifics("board_manufacturing", range);
   const printingSpecifics = useStageSpecifics("printing", range);
@@ -70,6 +75,22 @@ export function MachineMonitoring() {
     <Shell crumbs={crumbs} range={rangeInfo}>
       <div className="flex flex-col gap-4">
         {statusLine && <ProcessFlow stages={statusLine} />}
+
+        <ChartFrame
+          title="Live process flow"
+          question="Where is material moving right now, and where is it being lost?"
+          height="auto"
+        >
+          <ProcessDiagram
+            machinesByStage={{
+              board_manufacturing: boarding.data?.context_row.machines ?? [],
+              printing: printing.data?.context_row.machines ?? [],
+              bundling: bundling.data?.context_row.machines ?? [],
+            }}
+            parameters={parameterStrips.map(({ strip }) => strip)}
+            stageHref={(stage) => withRange(`/stage/${stage}`)}
+          />
+        </ChartFrame>
 
         <section className="flex flex-col gap-3">
           {STAGES.map((stage) => {

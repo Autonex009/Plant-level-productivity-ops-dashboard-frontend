@@ -56,10 +56,13 @@
   --color-kraft: #7c3aed;
   --color-kraft-soft: #ede9fe;
 
-  /* Machine / time states. */
+  /* Machine / time states. Breakdown deliberately does NOT reuse
+     --color-critical: red is reserved for "off target / needs escalation" on
+     KPIs and alerts, and a stopped machine on the floor is a known, being-
+     worked stoppage, not an alarm - so it gets its own calm, distinct hue. */
   --color-state-running: #16a34a;
   --color-state-setup: #d97706;
-  --color-state-breakdown: #e11d48;
+  --color-state-breakdown: #0891b2;
   --color-state-waiting: #7c3aed;
   --color-state-idle: #eef0f4;
   --color-state-nodata: #9ca3af;
@@ -103,7 +106,7 @@
 
     --color-state-running: #22c55e;
     --color-state-setup: #f59e0b;
-    --color-state-breakdown: #fb7185;
+    --color-state-breakdown: #22d3ee;
     --color-state-waiting: #a78bfa;
     --color-state-idle: #262935;
     --color-state-nodata: #6b7280;
@@ -143,7 +146,7 @@
 
   --color-state-running: #22c55e;
   --color-state-setup: #f59e0b;
-  --color-state-breakdown: #fb7185;
+  --color-state-breakdown: #22d3ee;
   --color-state-waiting: #a78bfa;
   --color-state-idle: #262935;
   --color-state-nodata: #6b7280;
@@ -222,6 +225,24 @@ h6,
 
 @media (prefers-reduced-motion: reduce) {
   .pulse::after {
+    animation: none;
+  }
+}
+
+/* The process diagram's flow lines: material only appears to move on a
+   segment whose source machine is actually running right now. */
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+
+.flow-line {
+  animation: flow-dash 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-line {
     animation: none;
   }
 }

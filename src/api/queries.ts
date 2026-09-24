@@ -24,6 +24,11 @@ export const plantId = PLANT_ID;
 export const REFRESH = {
   live: 150_000,
   panels: 600_000,
+  // The process-flow diagram exists to be watched, not glanced at once - a
+  // demo standing in front of it for ten seconds should see a number move.
+  // Scoped to that one view (see useStageView's override param) rather than
+  // the spec's 2-3 minute cadence everywhere else, which stays as-is.
+  demo: 5_000,
 } as const;
 
 export interface RangeParams {
@@ -78,12 +83,21 @@ export function useTrends(days = 30) {
   });
 }
 
-export function useStageView(stage: Stage, range: RangeParams) {
+export function useStageView(
+  stage: Stage,
+  range: RangeParams,
+  options?: { refetchInterval?: number },
+) {
   return useQuery({
     queryKey: ["stage", PLANT_ID, stage, range],
     queryFn: () =>
       get<StageView>(`${BASE}/plants/${PLANT_ID}/stages/${stage}?${toSearch(range)}`),
-    refetchInterval: REFRESH.panels,
+    // This payload carries the status line and machine tiles, which the spec
+    // says refresh every 2-3 minutes - the KPIs riding along in the same
+    // response don't need to be faster than that to stay honest. A caller
+    // that's specifically showing this off live (the process diagram) can
+    // ask for a shorter cadence without changing it everywhere else.
+    refetchInterval: options?.refetchInterval ?? REFRESH.live,
   });
 }
 
