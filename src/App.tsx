@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
+import { ChatWidget } from "@/components/ChatWidget";
 import { MobileModuleTabs, Sidebar } from "@/components/Sidebar";
 import { Analytics } from "@/pages/Analytics";
 import { MachineMonitoring } from "@/pages/MachineMonitoring";
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
+      <ChatWidget />
     </div>
   );
 }

@@ -163,3 +163,24 @@ export function useClassifyDowntime() {
     },
   });
 }
+
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** Stateless by design: sends the whole conversation each turn rather than
+ *  keeping any server-side session, since the backend itself keeps none. */
+export function useChat() {
+  return useMutation({
+    mutationFn: async (messages: ChatTurn[]) => {
+      const response = await fetch("/api/v1/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages }),
+      });
+      if (!response.ok) throw new ApiError(await response.text(), response.status);
+      return response.json() as Promise<{ reply: string }>;
+    },
+  });
+}
