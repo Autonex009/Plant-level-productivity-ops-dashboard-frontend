@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 
-import { type ChatTurn, useChat } from "@/api/queries";
+import { ApiError, type ChatTurn, useChat } from "@/api/queries";
 
 /** DeepSeek replies in markdown; the widget has no reader for the rest of
  *  it, but bare **bold** asterisks read as an obvious bug, so this handles
@@ -55,9 +55,14 @@ export function ChatWidget() {
           ...prev,
           {
             role: "assistant",
-            content: `Sorry, I couldn't reach the assistant (${
-              error instanceof Error ? error.message : "unknown error"
-            }).`,
+            content:
+              // The server's own sentence (e.g. the rate-limit message) is
+              // already client-friendly; only wrap unknown/network errors.
+              error instanceof ApiError
+                ? error.message
+                : `Sorry, I couldn't reach the assistant (${
+                    error instanceof Error ? error.message : "unknown error"
+                  }).`,
           },
         ]),
     });

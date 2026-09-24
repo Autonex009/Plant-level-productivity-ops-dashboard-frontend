@@ -179,7 +179,19 @@ export function useChat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages }),
       });
-      if (!response.ok) throw new ApiError(await response.text(), response.status);
+      if (!response.ok) {
+        const body = await response.text();
+        // FastAPI's HTTPException body is {"detail": "..."} - surface that
+        // plain sentence (e.g. the rate-limit message) instead of raw JSON.
+        const detail = (() => {
+          try {
+            return JSON.parse(body)?.detail;
+          } catch {
+            return undefined;
+          }
+        })();
+        throw new ApiError(typeof detail === "string" ? detail : body, response.status);
+      }
       return response.json() as Promise<{ reply: string }>;
     },
   });
