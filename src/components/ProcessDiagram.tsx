@@ -2,44 +2,51 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { MachineTile, ParameterStrip, Stage } from "@/api/types";
+import {
+  Bundler,
+  Conveyor,
+  Corrugator,
+  DispatchBay,
+  FlexoPrinter,
+  FloorPad,
+  ReelStand,
+  STATION_W,
+  Transfer,
+  WasteBaler,
+  WasteChute,
+} from "@/components/machines/MachineArt";
 import { formatMinutes, formatNumber } from "@/lib/format";
 import { STAGE_LABEL, STATE_META } from "@/lib/viz";
 
-const BOX_W = 156;
-const BOX_H = 60;
-const ROW_GAP = 16;
-const COL_GAP = 130;
-const WASTE_W = 140;
-const WASTE_H = 46;
+const STATION_H = 100;
+const LABEL_H = 38;
+const ROW_GAP = 18;
+const COL_GAP = 62;
+const BELT_Y = 62; // where a conveyor sits against the station's own floor line
 
 const STATE_ORDER = ["running", "setup", "down", "waiting", "idle", "no_data"] as const;
 
 /**
- * The plant, drawn as what it actually is: reels and starch in, three real
- * stages with their real machines (printing fans out to two parallel
- * printers, not one box that quietly hides the second machine), waste
- * peeling off where the spec says it is lost, bundles out.
+ * The plant as a shop-floor elevation: reels in on the left, board and sheets
+ * travelling right along conveyors, trim dropping into the baler below, pallets
+ * out at the dispatch bay.
  *
- * Two things are deliberately encoded separately, because they answer two
- * different questions. The icon says *what* a box is (a corrugator reads
- * differently from a printer, and both read differently from the Inputs /
- * Waste / Dispatch boundary nodes, which get a hatched fill instead of a
- * solid one - they are not machines, they are where material enters or
- * leaves the process). Colour says *how it's doing right now* - the one
- * state palette used everywhere else in the dashboard, so red always means
- * the same thing here as it does on a KPI card.
+ * Drawn as machines rather than as a flowchart. A corrugator has fluted rolls
+ * and steam, a flexo has a cylinder column and an ink duct, a bundler has a
+ * strapping arch - so a plant person recognises their own line without reading
+ * a single label, which is the same reason the status line upstairs is shaped
+ * like the process.
  *
- * "Dynamic" means live state, not just a live number: a line only animates -
- * a moving dot, not just a dashed stroke - while the machine at its source is
- * actually running. A stopped machine's line goes flat and dim, which is the
- * same "grey means no failure, red/dim means look here" grammar as the rest
- * of the dashboard, applied to the one place that shows the whole process at
- * once.
+ * Printing fans out to a station per printer rather than one box hiding two
+ * machines, and the conveyors between columns are drawn per pair, so a line
+ * feeding a stopped printer visibly stops while its neighbour keeps moving.
  *
- * A box's colour and icon answer "what is this and how is it doing" at a
- * glance; clicking it answers the next question - "how is it doing,
- * exactly" - with the same parameter readings and reason codes the rest of
- * the page already has, rather than sending the reader away to find them.
+ * Motion means exactly one thing anywhere on this schematic: material is
+ * moving there right now. A roll only spins, a belt only flows and a sheet
+ * only travels while the machine driving it is actually running; everything
+ * else goes still and dims. Colour says how a machine is doing, in the same
+ * status palette used on every KPI card, and the steel it is drawn in is
+ * deliberately outside that palette so it never competes for meaning.
  */
 export function ProcessDiagram({
   machinesByStage,
@@ -56,239 +63,228 @@ export function ProcessDiagram({
   const printing = machinesByStage.printing ?? [];
   const bundling = machinesByStage.bundling ?? [];
 
-  const columns = [
-    { key: "inputs", x: 0, machines: null },
-    { key: "board_manufacturing" as Stage, x: BOX_W + COL_GAP, machines: boarding },
-    { key: "printing" as Stage, x: (BOX_W + COL_GAP) * 2, machines: printing },
-    { key: "bundling" as Stage, x: (BOX_W + COL_GAP) * 3, machines: bundling },
-    { key: "dispatch", x: (BOX_W + COL_GAP) * 4, machines: null },
+  const columns: {
+    key: string;
+    stage: Stage | null;
+    machines: MachineTile[] | null;
+    title: string;
+    sub: string;
+  }[] = [
+    { key: "inputs", stage: null, machines: null, title: "Reel stand", sub: "kraft in" },
+    {
+      key: "board_manufacturing",
+      stage: "board_manufacturing",
+      machines: boarding,
+      title: "Boarding",
+      sub: "",
+    },
+    { key: "printing", stage: "printing", machines: printing, title: "Printing", sub: "" },
+    { key: "bundling", stage: "bundling", machines: bundling, title: "Bundling", sub: "" },
+    { key: "dispatch", stage: null, machines: null, title: "Dispatch", sub: "bundles out" },
   ];
 
   const maxRows = Math.max(1, boarding.length, printing.length, bundling.length);
-  const plotH = maxRows * BOX_H + (maxRows - 1) * ROW_GAP;
-  const centerY = plotH / 2;
-  const wasteY = plotH + 74;
-  const totalH = wasteY + WASTE_H + 24;
-  const totalW = columns[columns.length - 1].x + BOX_W;
+  const rowPitch = STATION_H + LABEL_H + ROW_GAP;
+  const plotH = maxRows * rowPitch - ROW_GAP;
+  const centreY = plotH / 2;
 
-  const boxesOf = (machines: MachineTile[] | null) => {
-    if (machines === null) return [{ y: centerY - BOX_H / 2, machine: null }];
-    const height = machines.length * BOX_H + (machines.length - 1) * ROW_GAP;
-    const start = centerY - height / 2;
-    return machines.map((machine, i) => ({ y: start + i * (BOX_H + ROW_GAP), machine }));
+  const colX = (i: number) => i * (STATION_W + COL_GAP);
+  const totalW = colX(columns.length - 1) + STATION_W;
+
+  const wasteTop = plotH + 34;
+  const totalH = wasteTop + STATION_H + 16;
+
+  /** Vertical placement of each station within its column, centred as a group. */
+  const placeRows = (machines: MachineTile[] | null) => {
+    const count = machines === null ? 1 : Math.max(machines.length, 1);
+    const height = count * rowPitch - ROW_GAP;
+    const start = centreY - height / 2;
+    return Array.from({ length: count }, (_, i) => ({
+      y: start + i * rowPitch,
+      machine: machines ? (machines[i] ?? null) : null,
+    }));
   };
 
-  const laidOut = columns.map((col) => ({ ...col, boxes: boxesOf(col.machines) }));
+  const laidOut = columns.map((col, i) => ({
+    ...col,
+    x: colX(i),
+    rows: placeRows(col.machines),
+  }));
 
-  // Every box in column A connects to every box in column B - correct for
-  // fan-out (one corrugator feeding two printers) and fan-in (two printers
-  // feeding one bundler) without hard-coding today's machine counts.
-  const edges: {
-    from: { x: number; y: number; running: boolean };
-    to: { x: number; y: number };
-  }[] = [];
-  for (let c = 0; c < laidOut.length - 1; c++) {
-    const left = laidOut[c];
-    const right = laidOut[c + 1];
-    // Inputs has no machine of its own to be "running" - but material is
-    // plainly arriving if the machine it feeds is running, so that one edge
-    // reads off the *destination*. Every other edge still reads off its
-    // source, same as always: a machine only counts as feeding the next box
-    // while it is itself running.
-    const leftIsBoundary = left.machines === null;
-    for (const a of left.boxes) {
-      for (const b of right.boxes) {
-        const running = leftIsBoundary
-          ? b.machine?.state === "running"
-          : a.machine?.state === "running";
-        edges.push({
-          from: { x: left.x + BOX_W, y: a.y + BOX_H / 2, running },
-          to: { x: right.x, y: b.y + BOX_H / 2 },
-        });
-      }
-    }
-  }
-
-  // Waste peels off Boarding and Printing (per the spec: those are the two
-  // stages a mass-balance loss is attributed to), converging on one box.
-  // Each source keeps its own column's centre-x, so the branch actually
-  // starts under the box it is leaving rather than a fixed column, and
-  // carries its machine's running state so the branch can visibly carry
-  // waste right now instead of always looking dormant.
-  const wasteSources = [
-    ...laidOut[1].boxes.map((box) => ({
-      x: laidOut[1].x + BOX_W / 2,
-      y: box.y,
-      running: box.machine?.state === "running",
-    })),
-    ...laidOut[2].boxes.map((box) => ({
-      x: laidOut[2].x + BOX_W / 2,
-      y: box.y,
-      running: box.machine?.state === "running",
-    })),
-  ];
-  const wasteX = laidOut[2].x + BOX_W / 2 - WASTE_W / 2;
-
-  const curve = (x1: number, y1: number, x2: number, y2: number) => {
-    const midX = (x1 + x2) / 2;
-    return `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`;
-  };
-
-  // Boundary nodes aren't machines and have no state of their own - but
-  // material is visibly moving through them whenever the machine on the
-  // other side of that edge is running, so they borrow that machine's
-  // liveness instead of always sitting grey.
   const inputsLive = boarding.some((m) => m.state === "running");
   const dispatchLive = bundling.some((m) => m.state === "running");
-  const wasteLive = wasteSources.some((s) => s.running);
+
+  // A conveyor runs when the machine feeding it runs. The reel stand has no
+  // machine of its own, so that first belt reads off the corrugator it feeds -
+  // material is plainly arriving if the corrugator is pulling it.
+  const beltRuns = (left: (typeof laidOut)[number], leftRow: { machine: MachineTile | null }, rightRow: { machine: MachineTile | null }) =>
+    left.machines === null
+      ? rightRow.machine?.state === "running"
+      : leftRow.machine?.state === "running";
+
+  // Waste is attributed to boarding and printing, per the mass balance.
+  const wasteSources = [laidOut[1], laidOut[2]].flatMap((col) =>
+    col.rows
+      .filter((row) => row.machine)
+      .map((row) => ({
+        x: col.x + STATION_W / 2,
+        // Below the name plate, not through it.
+        y: row.y + STATION_H + LABEL_H - 4,
+        active: row.machine?.state === "running",
+      })),
+  );
+  const wasteX = (laidOut[1].x + laidOut[2].x) / 2 + STATION_W / 2;
+  const wasteActive = wasteSources.some((s) => s.active);
+
+  const selectedMachine = selected
+    ? machinesByStage[selected.stage].find((m) => m.machine_id === selected.machineId)
+    : undefined;
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto pb-1">
         <svg
           viewBox={`0 0 ${totalW} ${totalH}`}
-          className="mx-auto block"
-          style={{ minWidth: 760, height: (totalH / totalW) * 760 }}
+          width="100%"
+          style={{ minWidth: 900, maxWidth: totalW * 1.15 }}
+          className="block"
           role="img"
-          aria-label="Live process flow, reels to dispatch"
+          aria-label="Live process schematic: reel stand, corrugator, printers, bundling line, dispatch, and the waste baler"
         >
-          <defs>
-            <marker
-              id="arrow"
-              viewBox="0 0 8 8"
-              refX="7"
-              refY="4"
-              markerWidth="7"
-              markerHeight="7"
-              orient="auto-start-reverse"
-            >
-              <path d="M0,0 L8,4 L0,8 Z" fill="var(--color-ink-muted)" />
-            </marker>
-            <marker
-              id="arrow-live"
-              viewBox="0 0 8 8"
-              refX="7"
-              refY="4"
-              markerWidth="7"
-              markerHeight="7"
-              orient="auto-start-reverse"
-            >
-              <path d="M0,0 L8,4 L0,8 Z" fill="var(--color-good)" />
-            </marker>
-          </defs>
+          {/* Shop floor, one pad per station. Drawn as a rule across the whole
+              width it would run through the empty space between columns and
+              read as a divider rather than as a floor. */}
+          {laidOut.map((col) =>
+            col.rows.map((row, i) => (
+              <FloorPad
+                key={`floor-${col.key}-${i}`}
+                x={col.x - 6}
+                y={row.y + STATION_H - 2}
+                width={STATION_W + 12}
+              />
+            )),
+          )}
 
-          {/* Flow lines, under the boxes. */}
-          {edges.map((edge, i) => {
-            const d = curve(edge.from.x, edge.from.y, edge.to.x, edge.to.y);
-            return (
-              <g key={i}>
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={edge.from.running ? "var(--color-good)" : "var(--color-hairline-strong)"}
-                  strokeWidth={edge.from.running ? 2.2 : 1.6}
-                  strokeDasharray={edge.from.running ? "7 6" : undefined}
-                  className={edge.from.running ? "flow-line" : undefined}
-                  markerEnd={edge.from.running ? "url(#arrow-live)" : "url(#arrow)"}
-                />
-                {edge.from.running && (
-                  <circle r="3.2" fill="var(--color-good)">
-                    <animateMotion dur="1.3s" repeatCount="indefinite" path={d} />
-                  </circle>
-                )}
-              </g>
-            );
-          })}
-
-          {/* Waste branches - a loss, so this never turns the flow-line
-              green or joins the good-flow dot. It still needs to read as
-              "happening right now" when its source machine is actually
-              running, so an active branch gets a bolder stroke and its own
-              (critical-coloured) moving dot instead. */}
-          {wasteSources.map((source, i) => {
-            const d = curve(source.x, source.y + BOX_H, wasteX + WASTE_W / 2, wasteY);
-            return (
-              <g key={`waste-${i}`}>
-                <path
-                  d={d}
-                  fill="none"
-                  stroke="var(--color-critical)"
-                  strokeWidth={source.running ? 1.8 : 1.4}
-                  strokeDasharray="2 5"
-                  opacity={source.running ? 0.85 : 0.45}
-                />
-                {source.running && (
-                  <circle r="2.6" fill="var(--color-critical)">
-                    <animateMotion dur="1.6s" repeatCount="indefinite" path={d} />
-                  </circle>
-                )}
-              </g>
-            );
-          })}
-
-          {/* Inputs / Dispatch / Waste boundary nodes - not machines, so no
-              state of their own, but they light up with the edge feeding
-              them so the pipeline doesn't look like it dead-ends at either
-              end while everything between is live. */}
-          <foreignObject x={0} y={centerY - BOX_H / 2} width={BOX_W} height={BOX_H}>
-            <BoundaryBox title="Inputs" sub="kraft reels, starch" icon={<InputsIcon />} live={inputsLive} />
-          </foreignObject>
-          <foreignObject x={laidOut[4].x} y={centerY - BOX_H / 2} width={BOX_W} height={BOX_H}>
-            <BoundaryBox
-              title="Dispatch"
-              sub="counted bundles"
-              icon={<DispatchIcon />}
-              live={dispatchLive}
-            />
-          </foreignObject>
-          <foreignObject x={wasteX} y={wasteY} width={WASTE_W} height={WASTE_H}>
-            <BoundaryBox
-              title="Waste"
-              sub="trim, warp, rejects"
-              icon={<WasteIcon />}
-              tone="critical"
-              live={wasteLive}
-            />
-          </foreignObject>
-
-          {/* Machine boxes. */}
-          {[laidOut[1], laidOut[2], laidOut[3]].map((col) =>
-            col.boxes.map(
-              (box, i) =>
-                box.machine && (
-                  <foreignObject key={`${col.key}-${i}`} x={col.x} y={box.y} width={BOX_W} height={BOX_H}>
-                    <MachineBox
-                      machine={box.machine}
-                      stage={col.key as Stage}
-                      selected={selected?.machineId === box.machine.machine_id}
-                      onSelect={() => {
-                        const stage = col.key as Stage;
-                        setSelected((current) =>
-                          current?.machineId === box.machine!.machine_id
-                            ? null
-                            : { machineId: box.machine!.machine_id, stage },
-                        );
-                      }}
+          {/* Links between columns. A straight conveyor when the two stations
+              stand at the same height; a curved transfer when they do not,
+              since a straight belt across a height difference meets neither
+              machine. */}
+          {laidOut.slice(0, -1).map((left, i) => {
+            const right = laidOut[i + 1];
+            return left.rows.flatMap((leftRow, li) =>
+              right.rows.map((rightRow, ri) => {
+                const running = Boolean(beltRuns(left, leftRow, rightRow));
+                const key = `link-${left.key}-${li}-${ri}`;
+                const sameRow = Math.abs(leftRow.y - rightRow.y) < 2;
+                if (sameRow) {
+                  return (
+                    <Conveyor
+                      key={key}
+                      x={left.x + STATION_W - 6}
+                      y={leftRow.y + BELT_Y}
+                      width={COL_GAP + 12}
+                      running={running}
                     />
-                  </foreignObject>
-                ),
-            ),
+                  );
+                }
+                return (
+                  <Transfer
+                    key={key}
+                    from={{ x: left.x + STATION_W - 4, y: leftRow.y + BELT_Y + 4 }}
+                    to={{ x: right.x + 4, y: rightRow.y + BELT_Y + 4 }}
+                    running={running}
+                  />
+                );
+              }),
+            );
+          })}
+
+          {/* Trim chutes down to the baler. */}
+          {wasteSources.map((source, i) => (
+            <WasteChute
+              key={`chute-${i}`}
+              from={{ x: source.x, y: source.y }}
+              to={{ x: wasteX, y: wasteTop + 30 }}
+              active={source.active}
+            />
+          ))}
+
+          {/* The baler. */}
+          <g transform={`translate(${wasteX - STATION_W / 2} ${wasteTop})`}>
+            <WasteBaler active={wasteActive} />
+          </g>
+          <StationLabel
+            x={wasteX - STATION_W / 2}
+            y={wasteTop + STATION_H}
+            title="Waste baler"
+            value="trim, warp, rejects"
+            accent="var(--color-critical)"
+            muted
+          />
+
+          {/* Stations. */}
+          {laidOut.map((col) =>
+            col.rows.map((row, rowIndex) => {
+              const machine = row.machine;
+              const running = machine
+                ? machine.state === "running"
+                : col.key === "inputs"
+                  ? inputsLive
+                  : dispatchLive;
+              const accent = machine
+                ? STATE_META[machine.state].color
+                : running
+                  ? "var(--color-state-running)"
+                  : "var(--color-ink-muted)";
+              const isSelected = machine != null && selected?.machineId === machine.machine_id;
+
+              return (
+                <g key={`${col.key}-${rowIndex}`} transform={`translate(${col.x} ${row.y})`}>
+                  <g className={running ? undefined : "machine-idle"}>
+                    <StationArt colKey={col.key} running={running} accent={accent} />
+                  </g>
+
+                  {machine ? (
+                    <MachineLabel
+                      machine={machine}
+                      selected={isSelected}
+                      onSelect={() =>
+                        setSelected((current) =>
+                          current?.machineId === machine.machine_id
+                            ? null
+                            : { machineId: machine.machine_id, stage: col.stage as Stage },
+                        )
+                      }
+                    />
+                  ) : (
+                    <StationLabel
+                      x={0}
+                      y={STATION_H}
+                      title={col.title}
+                      value={col.sub}
+                      accent={accent}
+                      muted
+                    />
+                  )}
+                </g>
+              );
+            }),
           )}
         </svg>
       </div>
 
       <Legend />
 
-      {selected ? (
+      {selectedMachine && selected ? (
         <MachineHealthPanel
-          machine={machinesByStage[selected.stage].find((m) => m.machine_id === selected.machineId)}
+          machine={selectedMachine}
           stage={selected.stage}
           parameters={parameters.filter((p) => p.machine_id === selected.machineId)}
           stageHref={stageHref}
           onClose={() => setSelected(null)}
         />
       ) : (
-        <p className="px-1 text-[11px] italic text-[var(--color-ink-muted)]">
+        <p className="px-1 text-[11.5px] italic text-[var(--color-ink-muted)]">
           Click any machine for its live health.
         </p>
       )}
@@ -296,127 +292,141 @@ export function ProcessDiagram({
   );
 }
 
-function BoundaryBox({
-  title,
-  sub,
-  icon,
-  tone,
-  live,
+function StationArt({
+  colKey,
+  running,
+  accent,
 }: {
-  title: string;
-  sub: string;
-  icon: React.ReactNode;
-  tone?: "critical";
-  live?: boolean;
+  colKey: string;
+  running: boolean;
+  accent: string;
 }) {
-  // Waste keeps its critical colour whether or not it's currently active -
-  // a loss is never "good news" just because it's happening right now.
-  // Inputs/Dispatch have no state of their own, so idle is the neutral grey
-  // hairline and live borrows the same green as an actually-running machine.
-  const color =
-    tone === "critical"
-      ? "var(--color-critical)"
-      : live
-        ? "var(--color-state-running)"
-        : "var(--color-ink-muted)";
-  const borderColor =
-    tone === "critical"
-      ? "var(--color-critical)"
-      : live
-        ? "var(--color-state-running)"
-        : "var(--color-hairline-strong)";
+  switch (colKey) {
+    case "inputs":
+      return <ReelStand running={running} accent={accent} />;
+    case "board_manufacturing":
+      return <Corrugator running={running} accent={accent} />;
+    case "printing":
+      return <FlexoPrinter running={running} accent={accent} />;
+    case "bundling":
+      return <Bundler running={running} accent={accent} />;
+    default:
+      return <DispatchBay running={running} accent={accent} />;
+  }
+}
+
+/** A boundary station's name plate - not a machine, so it is not clickable. */
+function StationLabel({
+  x,
+  y,
+  title,
+  value,
+  accent,
+  muted,
+}: {
+  x: number;
+  y: number;
+  title: string;
+  value: string;
+  accent: string;
+  muted?: boolean;
+}) {
   return (
-    <div
-      className="flex h-full w-full items-center gap-2 rounded-md border border-dashed px-2.5"
-      style={{
-        borderColor,
-        color,
-        backgroundImage:
-          tone === "critical"
-            ? "repeating-linear-gradient(45deg, rgba(225,29,72,0.09) 0 1px, transparent 1px 8px)"
-            : "repeating-linear-gradient(45deg, rgba(148,163,184,0.14) 0 1px, transparent 1px 8px)",
-      }}
-    >
-      <span className="shrink-0" style={{ color }}>
-        {icon}
-      </span>
-      <div className="flex min-w-0 flex-col">
-        <div className="flex items-center gap-1.5">
-          {live && (
-            <span
-              aria-hidden
-              className="relative h-1.5 w-1.5 shrink-0 rounded-full pulse"
-              style={{ backgroundColor: color, color }}
-            />
-          )}
-          <span className="truncate text-[11.5px] font-semibold">{title}</span>
-        </div>
-        <span className="truncate text-[10px] leading-tight opacity-80">{sub}</span>
-      </div>
-    </div>
+    <g transform={`translate(${x} ${y})`}>
+      <text
+        x={STATION_W / 2}
+        y={17}
+        textAnchor="middle"
+        fontSize="12.5"
+        fontWeight="700"
+        fill={muted ? "var(--color-ink-2)" : accent}
+      >
+        {title}
+      </text>
+      <text
+        x={STATION_W / 2}
+        y={31}
+        textAnchor="middle"
+        fontSize="10.5"
+        fill="var(--color-ink-muted)"
+      >
+        {value}
+      </text>
+    </g>
   );
 }
 
-const STAGE_ICON: Record<Stage, React.ReactNode> = {
-  board_manufacturing: <CorrugatorIcon />,
-  printing: <PrinterIcon />,
-  bundling: <BundlerIcon />,
-};
-
-function MachineBox({
+/**
+ * A machine's name plate: code, live rate, and state. Clickable, because the
+ * next question after "which machine is that" is always "how is it doing,
+ * exactly" - and the answer belongs on this screen rather than one navigation
+ * away.
+ */
+function MachineLabel({
   machine,
-  stage,
   selected,
   onSelect,
 }: {
   machine: MachineTile;
-  stage: Stage;
   selected: boolean;
   onSelect: () => void;
 }) {
   const meta = STATE_META[machine.state];
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <g
+      transform={`translate(0 ${STATION_H})`}
+      role="button"
+      tabIndex={0}
       aria-pressed={selected}
-      aria-label={`${machine.name} - ${meta.label} - view health`}
-      className="flex h-full w-full cursor-pointer items-center gap-2 rounded-md border bg-[var(--color-surface-1)] pr-2.5 text-left transition hover:brightness-[0.98] focus-visible:outline-none"
-      style={{
-        borderColor: "var(--color-hairline)",
-        borderLeft: `4px solid ${meta.color}`,
-        boxShadow: selected ? "0 0 0 2px var(--color-series-1)" : undefined,
+      aria-label={`${machine.name}, ${meta.label}. Show live health.`}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
       }}
+      style={{ cursor: "pointer" }}
     >
-      <span
-        aria-hidden
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-        style={{ backgroundColor: "var(--color-plane)", color: "var(--color-ink-2)" }}
+      <rect
+        x={6}
+        y={4}
+        width={STATION_W - 12}
+        height={LABEL_H - 8}
+        rx={7}
+        fill={selected ? "var(--color-series-1-soft)" : "var(--color-surface-1)"}
+        stroke={selected ? "var(--color-series-1)" : "var(--color-hairline)"}
+        strokeWidth={selected ? 1.6 : 1}
+      />
+      <text x={15} y={18} fontSize="12" fontWeight="700" fill="var(--color-ink)">
+        {machine.machine_code}
+      </text>
+      <text x={15} y={30} fontSize="10.5" fill={meta.color}>
+        {meta.label}
+        {machine.state !== "running" && machine.minutes_in_state != null
+          ? ` · ${formatMinutes(machine.minutes_in_state)}`
+          : ""}
+      </text>
+      <text
+        x={STATION_W - 15}
+        y={20}
+        textAnchor="end"
+        fontSize="13"
+        fontWeight="700"
+        fill="var(--color-ink)"
       >
-        {STAGE_ICON[stage]}
-      </span>
-      <div className="flex min-w-0 flex-col gap-0.5 py-1.5">
-        <div className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className={`relative h-1.5 w-1.5 shrink-0 rounded-full ${machine.state === "running" ? "pulse" : ""}`}
-            style={{ backgroundColor: meta.color, color: meta.color }}
-          />
-          <span className="truncate text-[12px] font-semibold text-[var(--color-ink)]">
-            {machine.machine_code}
-          </span>
-        </div>
-        <div className="flex items-baseline gap-1">
-          <span className="tnum text-[13px] font-bold text-[var(--color-ink)]">
-            {machine.rate != null ? formatNumber(machine.rate, machine.rate >= 1000 ? 0 : 1) : "--"}
-          </span>
-          <span className="text-[10px] text-[var(--color-ink-muted)]">{machine.rate_unit}</span>
-          <span className="truncate text-[10px]" style={{ color: meta.color }}>
-            · {meta.label}
-          </span>
-        </div>
-      </div>
-    </button>
+        {machine.rate != null ? formatNumber(machine.rate, machine.rate >= 1000 ? 0 : 1) : "--"}
+      </text>
+      <text
+        x={STATION_W - 15}
+        y={30}
+        textAnchor="end"
+        fontSize="9.5"
+        fill="var(--color-ink-muted)"
+      >
+        {machine.rate_unit}
+      </text>
+    </g>
   );
 }
 
@@ -434,13 +444,12 @@ function MachineHealthPanel({
   stageHref,
   onClose,
 }: {
-  machine: MachineTile | undefined;
+  machine: MachineTile;
   stage: Stage;
   parameters: ParameterStrip[];
   stageHref: (stage: Stage) => string;
   onClose: () => void;
 }) {
-  if (!machine) return null;
   const meta = STATE_META[machine.state];
 
   const metrics: { label: string; value: string; tone?: string }[] = [
@@ -452,10 +461,7 @@ function MachineHealthPanel({
       label: "vs standard",
       value: machine.rate_vs_standard_pct != null ? `${machine.rate_vs_standard_pct}%` : "--",
     },
-    {
-      label: "Time in state",
-      value: formatMinutes(machine.minutes_in_state),
-    },
+    { label: "Time in state", value: formatMinutes(machine.minutes_in_state) },
   ];
   if (machine.reason_code) {
     metrics.push({ label: "Reason", value: machine.reason_code.description });
@@ -469,24 +475,25 @@ function MachineHealthPanel({
   }
 
   return (
-    <div className="rounded-lg border p-3" style={{ borderColor: "var(--color-hairline)" }}>
+    <div
+      className="rounded-[10px] border p-3"
+      style={{ borderColor: "var(--color-hairline)", background: "var(--color-surface-2)" }}
+    >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-            style={{ backgroundColor: "var(--color-plane)", color: "var(--color-ink-2)" }}
-          >
-            {STAGE_ICON[stage]}
-          </span>
-          <div className="flex flex-col">
-            <span className="text-[13px] font-semibold text-[var(--color-ink)]">{machine.name}</span>
-            <span className="text-[11px] text-[var(--color-ink-muted)]">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <svg viewBox={`0 0 ${STATION_W} ${STATION_H + 4}`} width="62" height="38" aria-hidden>
+            <StationArt colKey={stage} running={machine.state === "running"} accent={meta.color} />
+          </svg>
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-[13.5px] font-bold text-[var(--color-ink)]">
+              {machine.name}
+            </span>
+            <span className="truncate text-[11.5px] text-[var(--color-ink-muted)]">
               {machine.machine_code} · {STAGE_LABEL[stage]}
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <span
             className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
             style={{ backgroundColor: `${meta.color}1a`, color: meta.color }}
@@ -507,7 +514,9 @@ function MachineHealthPanel({
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
         {metrics.map((metric) => (
           <div key={metric.label} className="flex flex-col">
-            <span className="truncate text-[10px] text-[var(--color-ink-muted)]">{metric.label}</span>
+            <span className="truncate text-[10px] text-[var(--color-ink-muted)]">
+              {metric.label}
+            </span>
             <span
               className="tnum truncate text-[12.5px] font-semibold"
               style={{ color: metric.tone ?? "var(--color-ink)" }}
@@ -520,7 +529,7 @@ function MachineHealthPanel({
 
       <Link
         to={stageHref(stage)}
-        className="mt-3 inline-block text-[11px] text-[var(--color-series-1)] transition hover:underline"
+        className="mt-3 inline-block text-[11.5px] font-semibold text-[var(--color-series-1)] transition hover:underline"
       >
         Open stage →
       </Link>
@@ -542,102 +551,37 @@ function Legend() {
         </span>
       ))}
       <span className="flex items-center gap-1">
-        <svg width="16" height="8" aria-hidden>
-          <circle cx="8" cy="4" r="3" fill="var(--color-good)" />
+        <svg width="18" height="8" aria-hidden>
+          <rect
+            x="1"
+            y="2"
+            width="12"
+            height="4"
+            rx="1"
+            fill="var(--color-board)"
+            stroke="var(--color-board-edge)"
+            strokeWidth="0.8"
+          />
         </svg>
-        Live material flow
+        Board on the line
       </span>
       <span className="flex items-center gap-1">
-        <svg width="16" height="8" aria-hidden>
+        <svg width="18" height="8" aria-hidden>
           <line
             x1="0"
             y1="4"
-            x2="16"
+            x2="18"
             y2="4"
             stroke="var(--color-critical)"
-            strokeWidth="1.4"
-            strokeDasharray="2 3"
+            strokeWidth="1.5"
+            strokeDasharray="4 4"
           />
         </svg>
-        Waste
+        Trim to baler
+      </span>
+      <span className="italic text-[var(--color-ink-muted)]">
+        Anything moving is moving right now.
       </span>
     </div>
-  );
-}
-
-function InputsIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" width="16" height="16" aria-hidden>
-      <circle cx="10" cy="10" r="6.5" stroke="currentColor" strokeWidth="1.4" />
-      <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
-  );
-}
-
-function CorrugatorIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" width="15" height="15" aria-hidden>
-      <path
-        d="M3 7.2c1.1-1.8 2.6-1.8 3.7 0s2.6 1.8 3.7 0 2.6-1.8 3.7 0 2.6 1.8 3.7 0"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-      <path
-        d="M3 13c1.1-1.8 2.6-1.8 3.7 0s2.6 1.8 3.7 0 2.6-1.8 3.7 0 2.6 1.8 3.7 0"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function PrinterIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" width="15" height="15" aria-hidden>
-      <path d="M5.5 7.2V3.6h9v3.6" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-      <rect x="3" y="7.2" width="14" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M6.2 13.4v3h7.6v-3" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function BundlerIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" width="15" height="15" aria-hidden>
-      <rect x="3.5" y="5" width="13" height="11" rx="1.2" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M3.5 10.2h13M10 5v11" stroke="currentColor" strokeWidth="1.3" />
-    </svg>
-  );
-}
-
-function DispatchIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" width="15" height="15" aria-hidden>
-      <path d="M2.6 13.6V6.8h7.2v6.8" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-      <path
-        d="M9.8 9.4h3.1l2.5 2.4v1.8H9.8"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-      <circle cx="5.8" cy="14.6" r="1.3" stroke="currentColor" strokeWidth="1.2" />
-      <circle cx="12.6" cy="14.6" r="1.3" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  );
-}
-
-function WasteIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" width="15" height="15" aria-hidden>
-      <path
-        d="M4.2 6h11.6M8 6V4.4h4V6M6.1 6l.7 9.4a1 1 0 0 0 1 .9h4.4a1 1 0 0 0 1-.9L14 6"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
   );
 }

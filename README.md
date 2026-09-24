@@ -85,10 +85,13 @@ src/
     useRange.ts the time selector, backed by the URL
   components/
     ProcessFlow.tsx   the live Boarding → Printing → Bundling status line
+    ProcessDiagram.tsx the shop-floor schematic on Machine Monitoring
     KpiCard.tsx       value + target + verdict
     AlertPanel.tsx    alerts, acknowledgement, and alert deep-linking
     ReasonPicker.tsx  the one write action: classifying a stop
     charts/           one component per question in the visual grammar
+    machines/         the machine artwork the schematic is drawn from
+    settings/         target bands and the shift mass balance
   pages/        PlantView (L1), StageView (L2), StageSpecifics (L3),
                 OwnerMobileView (L1 on a phone)
 ```
@@ -109,6 +112,24 @@ One chart form per question, used identically everywhere:
 
 Deliberately absent, permanently: pie charts, speedometer gauges, 3D, and more
 than two charts on one screen.
+
+### The machine schematic
+
+`components/machines/MachineArt.tsx` draws the plant as machines rather than as
+boxes with a glyph in them — a corrugator by its fluted rolls and steam, a flexo
+by its cylinder column and ink duct, a bundler by its strapping arch. Every
+drawing shares one coordinate space (168 wide, floor at y=100), so stations line
+up on a common floor line and the same art is reused at thumbnail size on the
+Settings page and in the machine health panel.
+
+Two rules hold the schematic together:
+
+- **Motion means one thing.** A roll only spins, a belt only flows and a sheet
+  only travels while the machine driving it is actually running. A stopped
+  machine goes still and dims.
+- **Steel is not a status colour.** Machine bodies use their own neutral tokens;
+  state rides on one accent bar and one lamp, in the same status palette as
+  every KPI card.
 
 ### Colour
 

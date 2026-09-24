@@ -36,6 +36,10 @@ export interface MetricDefinitionRecord {
   unit: string;
   category: MetricCategory;
   stage: Stage | null;
+  /** Which side of the target is the good side. Served by the API rather than
+   *  re-derived here, so a target band can never be drawn pointing the
+   *  opposite way to the RAG verdict computed from the same rule. */
+  lower_is_better: boolean;
 }
 
 export interface PlantMetricTargetRecord {
