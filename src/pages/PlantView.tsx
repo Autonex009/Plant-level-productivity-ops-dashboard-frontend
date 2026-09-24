@@ -10,6 +10,11 @@ import { OwnerMobileView } from "@/pages/OwnerMobileView";
 import { ChartFrame } from "@/components/charts/ChartFrame";
 import { FlightPath } from "@/components/charts/FlightPath";
 import { LossWaterfall } from "@/components/charts/LossWaterfall";
+import {
+  EnergyMixBar,
+  MaterialFlowBar,
+  TimeSplitBar,
+} from "@/components/charts/PlantComposition";
 import { TrendLine } from "@/components/charts/TrendLine";
 import { formatInr, formatMetric } from "@/lib/format";
 import { useIsMobile } from "@/lib/useIsMobile";
@@ -18,10 +23,16 @@ import { useRange } from "@/lib/useRange";
 /**
  * Level 1 - the plant view. "What is happening with the plant right now?"
  *
- * The restraint is the feature: four rollup cards, exactly two charts, no
- * machine names, no operating parameters, no tables, no Paretos. All of that
- * exists one level down, and putting any of it here would cost the five-second
- * read this screen exists to provide.
+ * The restraint is the feature: four rollup cards, no machine names, no
+ * operating parameters, no tables, no Paretos. All of that exists one level
+ * down, and putting any of it here would cost the five-second read this screen
+ * exists to provide.
+ *
+ * Below the two signature charts sits a composition row - material, minutes and
+ * power - which stays within that restraint because every bar in it is read off
+ * the same totals block the cards above are computed from. It adds no new
+ * request, no machine names and nothing to click through; it only opens up
+ * numbers the screen already states.
  */
 export function PlantView() {
   const { range, withRange } = useRange();
@@ -97,6 +108,15 @@ export function PlantView() {
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_1fr]">
           <FlightPath data={data.flight_path} />
           <LossWaterfall steps={data.waterfall} onSelectLoss={openLoss} />
+        </div>
+
+        {/* The composition underneath the headline numbers - material, minutes
+            and power. All three read the same totals the rollup cards are
+            computed from, so they cannot disagree with the cards above. */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          <MaterialFlowBar totals={data.totals} />
+          <TimeSplitBar totals={data.totals} />
+          <EnergyMixBar totals={data.totals} />
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.05fr]">
