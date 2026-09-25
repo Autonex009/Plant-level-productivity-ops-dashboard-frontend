@@ -3,12 +3,13 @@ import { Link } from "react-router-dom";
 import { useStageView } from "@/api/queries";
 import type { Stage } from "@/api/types";
 import { KpiCard } from "@/components/KpiCard";
+import { MiniArc } from "@/components/MiniViz";
 import { ProcessFlow } from "@/components/ProcessFlow";
 import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
 import { ChartFrame } from "@/components/charts/ChartFrame";
 import { TrendLine } from "@/components/charts/TrendLine";
 import { useRange } from "@/lib/useRange";
-import { STAGE_BLURB, STAGE_LABEL, STAGES } from "@/lib/viz";
+import { kpiArcRange, RAG_META, STAGE_BLURB, STAGE_LABEL, STAGES } from "@/lib/viz";
 
 /**
  * Production Efficiency - "how efficient is each stage, side by side?"
@@ -95,18 +96,32 @@ function StageEfficiencySection({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {data.kpis.map((kpi) => (
-          <KpiCard
-            key={kpi.key}
-            label={kpi.label}
-            value={kpi.value}
-            unit={kpi.unit}
-            target={kpi.target}
-            rag={kpi.rag}
-            provisional={kpi.provisional}
-            lowerIsBetter={kpi.lower_is_better}
-          />
-        ))}
+        {data.kpis.map((kpi) => {
+          const range = kpiArcRange({ ...kpi, lowerIsBetter: kpi.lower_is_better });
+          return (
+            <KpiCard
+              key={kpi.key}
+              label={kpi.label}
+              value={kpi.value}
+              unit={kpi.unit}
+              target={kpi.target}
+              rag={kpi.rag}
+              provisional={kpi.provisional}
+              lowerIsBetter={kpi.lower_is_better}
+              viz={
+                range ? (
+                  <MiniArc
+                    value={kpi.value}
+                    min={range.min}
+                    max={range.max}
+                    target={kpi.target}
+                    color={RAG_META[kpi.rag].color}
+                  />
+                ) : undefined
+              }
+            />
+          );
+        })}
       </div>
 
       <ChartFrame

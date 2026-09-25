@@ -287,6 +287,7 @@ export interface StageView {
       no_data: number;
     };
     staged_orders_today: number | null;
+    orders_due_today: number | null;
   };
   kpis: Kpi[];
   charts: { primary: ChartPayload; secondary: ChartPayload };

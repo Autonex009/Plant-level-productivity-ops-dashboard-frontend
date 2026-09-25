@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import type { MachineState, PlantTotals, Stage, StatusDot } from "@/api/types";
 import { formatNumber } from "@/lib/format";
@@ -18,7 +18,7 @@ const GAUGE_COLOR: Partial<Record<MachineState, string>> = {
 // and no live value to even guess from (every machine simultaneously stale)
 // - realistic nameplate ballparks, so the dial reads as "no data yet" rather
 // than degenerating to a near-zero scale with duplicate rounded ticks.
-const DEFAULT_MAX: Record<Stage, number> = {
+export const DEFAULT_MAX: Record<Stage, number> = {
   board_manufacturing: 300,
   printing: 8000,
   bundling: 120,
@@ -57,7 +57,7 @@ function arcPath(a0: number, a1: number, r = RADIUS): string {
  * all read off that same animated number - which is also why the pointer
  * and the figure move in lockstep instead of drifting apart.
  */
-function useAnimatedNumber(target: number, durationMs = 900): number {
+export function useAnimatedNumber(target: number, durationMs = 900): number {
   const [display, setDisplay] = useState(REDUCED_MOTION ? target : 0);
   const from = useRef(REDUCED_MOTION ? target : 0);
 
@@ -202,22 +202,130 @@ function Gauge({ row }: { row: StatusDot }) {
   );
 }
 
+// Two turns of 0-9, so a wheel climbing 9 -> 0 rolls forward onto the second
+// turn instead of spinning backwards through eight digits, then snaps back
+// silently once it has arrived.
+const DIGIT_STRIP = "01234567890123456789".split("");
+const ROLL_MS = 900;
+
+/** One digit wheel of the odometer, as a strip of numerals behind a window. */
+function DigitWheel({
+  digit,
+  decimal,
+  delayMs,
+}: {
+  digit: number;
+  decimal: boolean;
+  delayMs: number;
+}) {
+  const [position, setPosition] = useState(digit);
+  const [rolling, setRolling] = useState(true);
+  const shown = useRef(digit);
+
+  useEffect(() => {
+    if (digit === shown.current) return;
+    const previous = shown.current;
+    shown.current = digit;
+    const target = digit < previous ? digit + 10 : digit;
+    setRolling(true);
+    setPosition(target);
+    if (target < 10) return;
+    const timer = setTimeout(() => {
+      setRolling(false);
+      setPosition(digit);
+    }, ROLL_MS + delayMs + 50);
+    return () => clearTimeout(timer);
+  }, [digit, delayMs]);
+
+  // The snap back onto the first turn must not itself animate; re-arm the
+  // transition on the next frame, once the jump has been painted.
+  useEffect(() => {
+    if (rolling) return;
+    const frame = requestAnimationFrame(() => setRolling(true));
+    return () => cancelAnimationFrame(frame);
+  }, [rolling]);
+
+  return (
+    <span
+      className="relative block overflow-hidden rounded-[3px] text-center"
+      style={{
+        width: "0.66em",
+        height: "1.2em",
+        lineHeight: "1.2em",
+        color: "#F3F1E7",
+        background: decimal
+          ? "linear-gradient(#4E3212,#9C6B2F 32%,#9C6B2F 68%,#4E3212)"
+          : "linear-gradient(#0B0D11,#282C36 32%,#282C36 68%,#0B0D11)",
+      }}
+    >
+      <span
+        className="block"
+        style={{
+          transform: `translateY(-${position * 5}%)`,
+          transition: rolling && !REDUCED_MOTION ? `transform ${ROLL_MS}ms cubic-bezier(.2,.8,.2,1)` : "none",
+          transitionDelay: `${delayMs}ms`,
+        }}
+      >
+        {DIGIT_STRIP.map((numeral, i) => (
+          <i key={i} className="block not-italic" style={{ height: "1.2em" }}>
+            {numeral}
+          </i>
+        ))}
+      </span>
+      {/* The curve of the drum: dark at the top and bottom of the window. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "linear-gradient(rgba(0,0,0,.5),transparent 30%,transparent 70%,rgba(0,0,0,.5))" }}
+      />
+    </span>
+  );
+}
+
+function wheelDigits(value: number, intDigits: number, decimals: number): number[] {
+  const count = intDigits + decimals;
+  const scaled = Math.floor(Math.max(value, 0) * 10 ** decimals + 1e-6);
+  return String(scaled).padStart(count, "0").slice(-count).split("").map(Number);
+}
+
 // A fixed dark bezel, not a token - a digital readout stays dark in both
 // light and dark theme, the same way a real one doesn't turn white in a
-// bright room.
+// bright room. The decimal wheels are amber like the trip meter on a real
+// odometer, for the same reason: it marks them as the fast-moving digits.
 function Odometer({ label, value, digits, unit }: { label: string; value: number; digits: number; unit: string }) {
   const animated = useAnimatedNumber(value, 1100);
+  // Sized off the settled figure, not the sweeping one, so wheels don't
+  // appear and shift the readout sideways while it counts up.
+  const intDigits = Math.max(4, String(Math.floor(Math.max(value, 0))).length);
+  const wheels = wheelDigits(animated, intDigits, digits);
+
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-[11.5px] font-medium text-[var(--color-ink-2)]">{label}</span>
       <div
-        className="tnum inline-flex w-fit items-baseline gap-2 rounded-lg px-3 py-2 shadow-inner"
-        style={{ background: "#181B20" }}
+        className="inline-flex w-fit items-center gap-[3px] rounded-lg px-[7px] py-[6px]"
+        style={{
+          background: "#181B20",
+          boxShadow: "inset 0 2px 4px rgba(0,0,0,.55), 0 0 0 1px var(--color-hairline)",
+          fontSize: "clamp(22px,2.6vw,30px)",
+          fontWeight: 700,
+        }}
+        role="img"
+        aria-label={`${label}: ${value.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${unit}`}
       >
-        <span className="text-[26px] font-bold tracking-wider" style={{ color: "#F4F2E9" }}>
-          {animated.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}
-        </span>
-        <span className="text-[12px] font-semibold" style={{ color: "rgba(244,242,233,0.55)" }}>
+        {wheels.map((digit, i) => (
+          <Fragment key={i}>
+            {i === intDigits && digits > 0 && (
+              <span
+                aria-hidden
+                className="mb-[7px] h-[5px] w-[5px] shrink-0 self-end rounded-full"
+                style={{ background: "#C9C6B8" }}
+              />
+            )}
+            <DigitWheel digit={digit} decimal={i >= intDigits} delayMs={i * 90} />
+          </Fragment>
+        ))}
+        <span className="ml-1.5 text-[14px] font-semibold" style={{ color: "#CFCBBC" }}>
           {unit}
         </span>
       </div>

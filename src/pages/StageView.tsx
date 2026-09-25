@@ -1,11 +1,13 @@
 import { useNavigate, useParams } from "react-router-dom";
 
-import { useStageView } from "@/api/queries";
-import type { ChartPayload, MachineTile, OrderCard, Stage } from "@/api/types";
+import { useStageSpecifics, useStageView } from "@/api/queries";
+import type { ChartPayload, MachineTile, OrderCard, Stage, WorkerLogEntry } from "@/api/types";
 import { AlertPanel } from "@/components/AlertPanel";
 import { KpiCard } from "@/components/KpiCard";
 import { MachineTileCard } from "@/components/MachineTileCard";
+import { MiniArc } from "@/components/MiniViz";
 import { ProcessFlow } from "@/components/ProcessFlow";
+import { StageInstruments } from "@/components/StageInstruments";
 import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
 import { ChartFrame } from "@/components/charts/ChartFrame";
 import { HourlyBars } from "@/components/charts/HourlyBars";
@@ -15,7 +17,7 @@ import { TimeSplitStrip } from "@/components/charts/TimeSplitStrip";
 import { TrendLine } from "@/components/charts/TrendLine";
 import { formatNumber } from "@/lib/format";
 import { useRange } from "@/lib/useRange";
-import { STAGE_LABEL, STAGES } from "@/lib/viz";
+import { kpiArcRange, RAG_META, STAGE_LABEL, STAGES } from "@/lib/viz";
 
 /**
  * Level 2 - the stage view. "Which part of Boarding, Printing or Bundling is
@@ -32,6 +34,10 @@ export function StageView() {
   const navigate = useNavigate();
   const valid = stage && STAGES.includes(stage);
   const query = useStageView((valid ? stage : "board_manufacturing") as Stage, range);
+  // Parameters aren't in this endpoint's own payload - they're fetched once
+  // more here purely to feed the live-instrument dials below, same pattern
+  // Overview already uses to feed its own cross-stage panel.
+  const specifics = useStageSpecifics((valid ? stage : "board_manufacturing") as Stage, range);
 
   const crumbs = [
     { label: "Plant", to: withRange("/") },
@@ -81,22 +87,47 @@ export function StageView() {
           onOpenParameters={() => toSpecifics("parameters")}
         />
 
+        <StageInstruments
+          machines={data.context_row.machines}
+          parameters={specifics.data?.parameters ?? []}
+          stagedOrders={
+            data.context_row.staged_orders_today != null && data.context_row.orders_due_today
+              ? { staged: data.context_row.staged_orders_today, due: data.context_row.orders_due_today }
+              : null
+          }
+          countAudits={countAudits(specifics.data?.extras.worker_log)}
+        />
+
         {/* Five KPI cards maximum, judged against job-specific standards. */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {data.kpis.map((kpi) => (
-            <KpiCard
-              key={kpi.key}
-              label={kpi.label}
-              value={kpi.value}
-              unit={kpi.unit}
-              target={kpi.target}
-              rag={kpi.rag}
-              provisional={kpi.provisional}
-              lowerIsBetter={kpi.lower_is_better}
-              sub={kpi.sub ? <span className="text-[var(--color-ink-muted)]">{kpi.sub}</span> : undefined}
-              onClick={() => toSpecifics("hours", { metric: kpi.key })}
-            />
-          ))}
+          {data.kpis.map((kpi) => {
+            const range = kpiArcRange({ ...kpi, lowerIsBetter: kpi.lower_is_better });
+            return (
+              <KpiCard
+                key={kpi.key}
+                label={kpi.label}
+                value={kpi.value}
+                unit={kpi.unit}
+                target={kpi.target}
+                rag={kpi.rag}
+                provisional={kpi.provisional}
+                lowerIsBetter={kpi.lower_is_better}
+                sub={kpi.sub ? <span className="text-[var(--color-ink-muted)]">{kpi.sub}</span> : undefined}
+                onClick={() => toSpecifics("hours", { metric: kpi.key })}
+                viz={
+                  range ? (
+                    <MiniArc
+                      value={kpi.value}
+                      min={range.min}
+                      max={range.max}
+                      target={kpi.target}
+                      color={RAG_META[kpi.rag].color}
+                    />
+                  ) : undefined
+                }
+              />
+            );
+          })}
         </div>
 
         {/* The stage's two signature charts. */}
@@ -153,6 +184,19 @@ export function StageView() {
       </div>
     </Shell>
   );
+}
+
+/**
+ * How many of this period's count audits came back an exact match, out of
+ * how many were taken - both real counts read off the same worker log the
+ * Workers & audits panel already shows, not a rate estimated from one of
+ * them.
+ */
+function countAudits(rows: WorkerLogEntry[] | undefined): { exact: number; total: number } | null {
+  const audited = (rows ?? []).filter((row) => row.count_accuracy_pct != null);
+  if (audited.length === 0) return null;
+  const exact = audited.filter((row) => (row.count_accuracy_pct as number) >= 99.95).length;
+  return { exact, total: audited.length };
 }
 
 /**

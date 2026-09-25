@@ -380,7 +380,81 @@ function ParametersPanel({
           ))}
         </div>
       )}
+
+      {inkChecks && inkChecks.checks.length > 0 && <InkCheckLog checks={inkChecks.checks} />}
     </div>
+  );
+}
+
+/** The raw readings the ink-check band strips above are summarising - Ford
+ *  cup viscosity and pH, logged by hand every couple of hours. The strip
+ *  says "in band, steady"; this is the log that backs that claim up. */
+function InkCheckLog({
+  checks,
+}: {
+  checks: NonNullable<Specifics["extras"]["ink_checks"]>["checks"];
+}) {
+  const rows = [...checks].sort(
+    (a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime(),
+  );
+  return (
+    <ChartFrame
+      title="Ink check log"
+      question="What did the last few checks actually read?"
+      height="auto"
+    >
+      <div className="max-h-[280px] overflow-auto">
+        <table className="w-full text-[11px]">
+          <thead className="sticky top-0 bg-[var(--color-surface-1)]">
+            <tr className="text-left text-[var(--color-ink-muted)]">
+              <th className="py-1 pr-3 font-normal">Time</th>
+              <th className="py-1 pr-3 font-normal">Machine</th>
+              <th className="py-1 pr-3 font-normal">Reading</th>
+              <th className="py-1 pr-3 font-normal">Value</th>
+              <th className="py-1 pr-3 font-normal">Source</th>
+            </tr>
+          </thead>
+          <tbody className="tnum">
+            {rows.map((check, i) => (
+              <tr
+                key={`${check.machine_code}-${check.metric_code}-${check.recorded_at}-${i}`}
+                className="border-t border-[var(--color-hairline)] text-[var(--color-ink-2)]"
+              >
+                <td className="py-1.5 pr-3">{formatClock(check.recorded_at)}</td>
+                <td className="py-1.5 pr-3 text-[var(--color-ink)]">{check.machine_code}</td>
+                <td className="py-1.5 pr-3">{check.label}</td>
+                <td className="py-1.5 pr-3 font-medium text-[var(--color-ink)]">
+                  {formatNumber(check.value, 2)} {check.unit}
+                </td>
+                <td className="py-1.5 pr-3 text-[var(--color-ink-muted)]">{check.source}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </ChartFrame>
+  );
+}
+
+/** A run's rate against the standard set for that job, as a figure and a bar -
+ *  the bar makes a column of rates scannable without reading every number. */
+function RateVsStandard({ pct }: { pct: number }) {
+  const color =
+    pct >= 90
+      ? "var(--color-good)"
+      : pct >= 75
+        ? "var(--color-warning)"
+        : "var(--color-critical)";
+  return (
+    <span className="inline-flex items-center gap-1.5" title={`${pct}% of the standard for this job`}>
+      <span style={{ color }}>{pct}%</span>
+      <span className="relative inline-block h-1.5 w-[52px] shrink-0 overflow-hidden rounded-full bg-[var(--color-surface-3)]">
+        <span
+          className="absolute inset-y-0 left-0 rounded-full"
+          style={{ width: `${Math.min(100, Math.max(pct, 0))}%`, background: color }}
+        />
+      </span>
+    </span>
   );
 }
 
@@ -442,18 +516,7 @@ function ExtrasPanel({ data, stage }: { data: Specifics; stage: Stage }) {
                       </td>
                       <td className="py-1.5 pr-3">
                         {run.rate_vs_standard_pct != null ? (
-                          <span
-                            style={{
-                              color:
-                                run.rate_vs_standard_pct >= 90
-                                  ? "var(--color-good)"
-                                  : run.rate_vs_standard_pct >= 75
-                                    ? "var(--color-warning)"
-                                    : "var(--color-critical)",
-                            }}
-                          >
-                            {run.rate_vs_standard_pct}%
-                          </span>
+                          <RateVsStandard pct={run.rate_vs_standard_pct} />
                         ) : (
                           "--"
                         )}

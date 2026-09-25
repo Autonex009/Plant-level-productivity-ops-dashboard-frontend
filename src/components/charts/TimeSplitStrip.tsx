@@ -3,6 +3,7 @@ import { formatMinutes } from "@/lib/format";
 import { TIME_CATEGORIES, TIME_CATEGORY_META } from "@/lib/viz";
 
 import { ChartFrame, EmptyPlot } from "./ChartFrame";
+import { Donut } from "./Donut";
 
 /**
  * Where did the minutes go?
@@ -35,7 +36,7 @@ export function TimeSplitStrip({
     <ChartFrame
       title={title}
       question="Where did the minutes go?"
-      height={Math.max(rows.length * 58 + 12, 140)}
+      height={Math.max(rows.length * 84 + 12, 160)}
       legend={TIME_CATEGORIES.map((category) => ({
         label: TIME_CATEGORY_META[category].label,
         color: TIME_CATEGORY_META[category].color,
@@ -44,7 +45,21 @@ export function TimeSplitStrip({
     >
       <ul className="flex flex-col gap-3">
         {rows.map((row) => (
-          <li key={row.machine_id}>
+          <li key={row.machine_id} className="flex items-center gap-3">
+            {/* The glance: how much of this machine's logged time was
+                actually running. The strip beside it carries the breakdown. */}
+            <Donut
+              parts={TIME_CATEGORIES.filter((category) => (row.minutes[category] ?? 0) > 0).map(
+                (category) => ({
+                  label: TIME_CATEGORY_META[category].label,
+                  value: row.minutes[category] ?? 0,
+                  color: TIME_CATEGORY_META[category].color,
+                }),
+              )}
+              center={`${row.shares.running ?? 0}%`}
+              inner="running"
+            />
+            <div className="min-w-0 flex-1">
             <div className="mb-1 flex items-baseline justify-between gap-3">
               <span className="truncate text-[12px] font-medium text-[var(--color-ink)]">
                 {row.machine_code}
@@ -101,6 +116,7 @@ export function TimeSplitStrip({
                   </span>
                 ),
               )}
+            </div>
             </div>
           </li>
         ))}

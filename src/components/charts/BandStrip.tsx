@@ -132,34 +132,47 @@ export function BandStrip({
         </span>
       </div>
 
-      <Sparkline series={strip.series} tone={tone} />
+      <Sparkline
+        series={strip.series}
+        tone={tone}
+        bandLow={strip.band_low}
+        bandHigh={strip.band_high}
+      />
     </div>
   );
 }
 
-/** The last few hours of the parameter, so the arrow has something to stand on. */
+/** The last few hours of the parameter, so the arrow has something to stand
+ *  on - with the healthy band shaded behind it at the same scale, so a value
+ *  drifting toward the edge of the strip above is visibly drifting toward
+ *  the edge of its band here too, not just moving. */
 function Sparkline({
   series,
   tone,
+  bandLow,
+  bandHigh,
 }: {
   series: { at: string; value: number }[];
   tone: string;
+  bandLow: number | null;
+  bandHigh: number | null;
 }) {
   // Two QA samples drawn as a line is a straight segment implying a trend
   // nobody measured.
   if (series.length < 4) return null;
   const values = series.map((point) => point.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const hasBand = bandLow != null && bandHigh != null;
+  const min = Math.min(...values, ...(hasBand ? [bandLow] : []));
+  const max = Math.max(...values, ...(hasBand ? [bandHigh] : []));
   const span = max - min || 1;
   const width = 100;
   const height = 22;
+  const toY = (v: number) => height - ((v - min) / span) * height;
 
   const path = series
     .map((point, index) => {
       const x = (index / (series.length - 1)) * width;
-      const y = height - ((point.value - min) / span) * height;
-      return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
+      return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${toY(point.value).toFixed(2)}`;
     })
     .join(" ");
 
@@ -170,6 +183,15 @@ function Sparkline({
       className="mt-2 h-6 w-full"
       aria-hidden
     >
+      {hasBand && (
+        <rect
+          x={0}
+          y={toY(bandHigh)}
+          width={width}
+          height={Math.max(toY(bandLow) - toY(bandHigh), 0.5)}
+          fill="var(--color-good-soft)"
+        />
+      )}
       <path d={path} fill="none" stroke={tone} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
     </svg>
   );

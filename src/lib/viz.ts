@@ -39,6 +39,36 @@ export const RAG_META: Record<Rag, { label: string; glyph: string; color: string
   grey: { label: "no reading", glyph: "○", color: "var(--color-ink-muted)", wash: "var(--color-surface-3)" },
 };
 
+/**
+ * The axis a KPI card's mini-arc should be drawn against - a presentation
+ * choice (where the ring starts and ends), never an invented data point
+ * (what's plotted on it is always the KPI's own real value and target).
+ *
+ * A "higher is better" percentage already has a natural 0-100 axis. Every
+ * other metric only gets an arc if it has a target to read the value
+ * against - headroom is set generically from that target rather than a
+ * per-metric hand-picked bound, so this works the same for every KPI card
+ * in the app instead of only the few someone thought to special-case.
+ *
+ * A "lower is better" percentage (conversion waste, reject rate) is the one
+ * exception: most of these live in a narrow single-digit band, so a fixed
+ * 0-100 axis is technically honest but reads as an empty ring. Scaling it
+ * to its own target the same way a non-percentage metric already does
+ * keeps the arc readable without inventing anything - zero is a genuine
+ * floor for a quantity that can't go negative.
+ */
+export function kpiArcRange(kpi: {
+  unit: string;
+  value: number | null;
+  target: number | null;
+  lowerIsBetter?: boolean;
+}): { min: number; max: number } | null {
+  if (kpi.unit === "%" && !kpi.lowerIsBetter) return { min: 0, max: 100 };
+  if (kpi.target == null) return kpi.unit === "%" ? { min: 0, max: 100 } : null;
+  const max = Math.max(kpi.target, kpi.value ?? 0) * 1.25;
+  return max > 0 ? { min: 0, max } : null;
+}
+
 export const STATE_META: Record<
   MachineState,
   { label: string; color: string; glyph: string }
