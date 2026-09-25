@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 
-import { usePlantOverview, useTrends } from "@/api/queries";
+import { usePlantOverview, useStageSpecifics, useTrends } from "@/api/queries";
 import type { RollupCard, WaterfallStep } from "@/api/types";
 import { AlertPanel } from "@/components/AlertPanel";
 import { InstrumentCluster } from "@/components/InstrumentCluster";
@@ -17,6 +17,7 @@ import {
   MaterialFlowBar,
   TimeSplitBar,
 } from "@/components/charts/PlantComposition";
+import { StagesClock } from "@/components/charts/StagesClock";
 import { TrendLine } from "@/components/charts/TrendLine";
 import { formatInr, formatMetric } from "@/lib/format";
 import { useIsMobile } from "@/lib/useIsMobile";
@@ -42,6 +43,11 @@ export function PlantView() {
   const navigate = useNavigate();
   const overview = usePlantOverview(range);
   const trends = useTrends(30);
+  // All-stages-on-one-clock reads the same hour rows the stage detail pages
+  // do; it just wasn't fetched on this page until this panel needed it.
+  const boardingSpecifics = useStageSpecifics("board_manufacturing", range);
+  const printingSpecifics = useStageSpecifics("printing", range);
+  const bundlingSpecifics = useStageSpecifics("bundling", range);
   // The owner's phone gets a re-ordered screen, not a narrower one.
   const isMobile = useIsMobile();
 
@@ -117,8 +123,17 @@ export function PlantView() {
         {/* The composition underneath the headline numbers - material, minutes
             and power. All three read the same totals the rollup cards are
             computed from, so they cannot disagree with the cards above. */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <MaterialFlowBar totals={data.totals} />
+          <StagesClock
+            rows={{
+              board_manufacturing: boardingSpecifics.data?.hour_rows ?? [],
+              printing: printingSpecifics.data?.hour_rows ?? [],
+              bundling: bundlingSpecifics.data?.hour_rows ?? [],
+            }}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <TimeSplitBar totals={data.totals} />
           <EnergyMixBar totals={data.totals} />
         </div>

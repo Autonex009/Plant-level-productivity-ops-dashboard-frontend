@@ -128,6 +128,7 @@ export interface PlantTotals {
   plant_productivity_pct: number | null;
   paper_consumed_kg: number;
   board_output_kg: number;
+  bundled_output_kg: number;
   dispatched_kg: number;
   overall_yield_pct: number | null;
   waste_kg: number;

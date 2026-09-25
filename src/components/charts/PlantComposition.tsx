@@ -16,13 +16,41 @@ import { TIME_CATEGORIES, TIME_CATEGORY_META } from "@/lib/viz";
  * charts - this is Level 1, where a reader gets five seconds.
  */
 
+const FLOW_W = 620;
+const FLOW_H = 232;
+const FLOW_TOP = 32;
+const NODE_W = 8;
+const NODE_X = [16, 210, 410, 604];
+
+function ribbon(x0: number, top: number, bot0: number, x1: number, bot1: number): string {
+  const midX = (x0 + x1) / 2;
+  return `M${x0},${top} L${x1},${top} L${x1},${bot1} C${midX},${bot1} ${midX},${bot0} ${x0},${bot0} Z`;
+}
+
+/** A thin leader line off the flow, ending near its label - the reference's
+ *  own style for a loss, and a better one than a filled ribbon: the tonnage
+ *  is stated in the label, so the line only needs to point, not to also
+ *  try to look proportional. */
+function leaderLine(x: number, yMid: number, toX: number, toY: number): string {
+  const midX = x + (toX - x) * 0.6;
+  return `M${x},${yMid} C${midX},${yMid} ${midX},${toY} ${toX},${toY}`;
+}
+
 /**
- * Where did the paper go?
+ * Where did the paper go, drawn as a Sankey - four real weigh-points (paper
+ * in, off the corrugator, bundled, dispatched), the flow narrowing between
+ * each because material is genuinely leaving it. Red peels off for good;
+ * brown is still moving (through printing, or staged but not yet shipped).
  *
- * Paper is 60-65% of the cost of a box, so this is the plant's economics in one
- * picture. Each bar is the same width - the paper that came in - with the part
- * that survived drawn in kraft and the part that did not in the loss colour, so
- * the shrinking kraft run is the yield falling stage by stage.
+ * The reference this is modelled on invents a fifth checkpoint - "printed
+ * tonnes" - and splits every loss into named causes (edge trim, splice,
+ * warp...) with fixed weights. We don't have a printed-tonnage weigh-point
+ * (printing's own output is measured in sheets, not kg) and we don't have a
+ * plant-level cause split for what's lost between the corrugator and
+ * bundling - that detail lives one level down, in each stage's own Pareto.
+ * So this shows exactly the four numbers we can actually weigh, and calls
+ * the gap between corrugator and bundling what it honestly is: printing and
+ * whatever's still in process, not a fabricated breakdown.
  */
 export function MaterialFlowBar({ totals }: { totals: PlantTotals }) {
   const paperIn = totals.paper_consumed_kg;
@@ -35,15 +63,23 @@ export function MaterialFlowBar({ totals }: { totals: PlantTotals }) {
     );
   }
 
-  const steps = [
-    { label: "Paper in", kg: paperIn, note: "kraft consumed" },
-    { label: "Board out", kg: totals.board_output_kg, note: "off the corrugator" },
-    { label: "Dispatched", kg: totals.dispatched_kg, note: "counted and staged" },
+  const nodes = [
+    { label: "Paper in", sub: "kraft consumed", kg: paperIn },
+    { label: "Corrugator", sub: "good board", kg: totals.board_output_kg },
+    { label: "Bundling", sub: "bundled", kg: Math.min(totals.bundled_output_kg, totals.board_output_kg) },
+    { label: "Dispatch", sub: "counted, staged", kg: Math.min(totals.dispatched_kg, totals.bundled_output_kg) },
   ];
+  const maxBarH = FLOW_H - FLOW_TOP - 70;
+  const scale = maxBarH / paperIn;
+  const barH = nodes.map((n) => Math.max(n.kg * scale, 1));
 
-  // The waste a plant budgets for, so the reader can see the excess rather than
-  // the total - the same distinction the cost-of-waste card makes.
-  const plannedPct = (totals.planned_waste_kg / paperIn) * 100;
+  const gaps: { fromIdx: number; kg: number; label: string; tone: "lost" | "wip" }[] = [
+    { fromIdx: 0, kg: nodes[0].kg - nodes[1].kg, label: "Corrugator loss", tone: "lost" as const },
+    { fromIdx: 1, kg: nodes[1].kg - nodes[2].kg, label: "Printing & WIP", tone: "wip" as const },
+    { fromIdx: 2, kg: nodes[2].kg - nodes[3].kg, label: "Staged, not shipped", tone: "wip" as const },
+  ].filter((g) => g.kg > paperIn * 0.002);
+
+  const wasteY = FLOW_TOP + maxBarH + 26;
 
   return (
     <ChartFrame
@@ -66,53 +102,73 @@ export function MaterialFlowBar({ totals }: { totals: PlantTotals }) {
         </>
       }
     >
-      <ul className="flex flex-col gap-2.5">
-        {steps.map((step) => {
-          const kept = Math.max(0, Math.min(100, (step.kg / paperIn) * 100));
-          const lost = 100 - kept;
+      <svg
+        viewBox={`0 0 ${FLOW_W} ${FLOW_H}`}
+        className="mx-auto block w-full"
+        style={{ maxWidth: 560 }}
+        role="img"
+        aria-label="Material flow, paper in to dispatch"
+      >
+        {/* Kraft for the raw material, indigo from the corrugator on - the
+            same "this has been converted" colour change the reference marks
+            with its own kraft/blue split. */}
+        {nodes.slice(0, -1).map((_, i) => (
+          <path
+            key={`flow-${i}`}
+            d={ribbon(NODE_X[i] + NODE_W, FLOW_TOP, FLOW_TOP + barH[i], NODE_X[i + 1], FLOW_TOP + barH[i + 1])}
+            fill={i === 0 ? "var(--color-board)" : "var(--color-series-1)"}
+            fillOpacity={i === 0 ? 0.55 : 0.22}
+          />
+        ))}
+        {gaps.map((gap, i) => {
+          const x = NODE_X[gap.fromIdx] + NODE_W;
+          const yMid = FLOW_TOP + (barH[gap.fromIdx] + barH[gap.fromIdx + 1]) / 2;
+          const toX = Math.min(x + 70, FLOW_W - 90);
+          const toY = wasteY + i * 19;
+          const color = gap.tone === "lost" ? "var(--color-critical)" : "var(--color-board-edge)";
           return (
-            <li key={step.label}>
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[12px] font-semibold text-[var(--color-ink)]">
-                  {step.label}
-                  <span className="ml-1.5 font-normal text-[var(--color-ink-muted)]">
-                    {step.note}
-                  </span>
-                </span>
-                <span className="tnum shrink-0 text-[12px] text-[var(--color-ink-2)]">
-                  {formatNumber(step.kg / 1000, 1)} t
-                  <span className="ml-1.5 text-[var(--color-ink-muted)]">
-                    {formatNumber(kept, 1)}%
-                  </span>
-                </span>
-              </div>
-              <div className="relative mt-1 flex h-[11px] overflow-hidden rounded-[4px] bg-[var(--color-surface-3)]">
-                <span style={{ width: `${kept}%`, backgroundColor: "var(--color-board)" }} />
-                {lost > 0.2 && (
-                  <span
-                    style={{ width: `${lost}%`, backgroundColor: "var(--color-critical)" }}
-                    title={`${formatNumber((paperIn - step.kg) / 1000, 2)} t lost by this point`}
-                  />
-                )}
-                {/* Where the plant expected to be, so an acceptable loss does
-                    not read the same as an excessive one. */}
-                {plannedPct > 0 && plannedPct < 100 && (
-                  <span
-                    aria-hidden
-                    className="absolute top-0 h-full w-[2px]"
-                    style={{
-                      left: `${100 - plannedPct}%`,
-                      backgroundColor: "var(--color-ink)",
-                      opacity: 0.45,
-                    }}
-                    title={`Planned waste allowance ${formatNumber(plannedPct, 1)}%`}
-                  />
-                )}
-              </div>
-            </li>
+            <g key={`loss-${i}`}>
+              <path
+                d={leaderLine(x, yMid, toX, toY)}
+                fill="none"
+                stroke={color}
+                strokeWidth={1.6}
+              />
+              <circle cx={x} cy={yMid} r={2.5} fill={color} />
+              <text x={toX + 6} y={toY + 4} fontSize={11.5} fill="var(--color-ink-2)">
+                {gap.label}{" "}
+                <tspan fontWeight={700} fill={color}>
+                  {formatNumber(gap.kg / 1000, 1)} t
+                </tspan>
+              </text>
+            </g>
           );
         })}
-      </ul>
+        {nodes.map((node, i) => (
+          <g key={node.label}>
+            <rect x={NODE_X[i]} y={FLOW_TOP} width={NODE_W} height={barH[i]} rx={2} fill="var(--color-ink)" />
+            <text
+              x={i === 0 ? NODE_X[i] : i === nodes.length - 1 ? NODE_X[i] + NODE_W : NODE_X[i] + NODE_W / 2}
+              y={FLOW_TOP - 20}
+              textAnchor={i === 0 ? "start" : i === nodes.length - 1 ? "end" : "middle"}
+              fontSize={12.5}
+              fontWeight={700}
+              fill="var(--color-ink)"
+            >
+              {node.label}
+            </text>
+            <text
+              x={i === 0 ? NODE_X[i] : i === nodes.length - 1 ? NODE_X[i] + NODE_W : NODE_X[i] + NODE_W / 2}
+              y={FLOW_TOP - 7}
+              textAnchor={i === 0 ? "start" : i === nodes.length - 1 ? "end" : "middle"}
+              fontSize={11}
+              fill="var(--color-ink-2)"
+            >
+              {formatNumber(node.kg / 1000, 1)} t {node.sub}
+            </text>
+          </g>
+        ))}
+      </svg>
     </ChartFrame>
   );
 }
