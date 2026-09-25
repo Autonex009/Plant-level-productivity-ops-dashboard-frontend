@@ -1,8 +1,7 @@
 import { Link } from "react-router-dom";
 
-import { usePlantOverview, useStageView } from "@/api/queries";
+import { useStageView } from "@/api/queries";
 import type { Stage } from "@/api/types";
-import { InstrumentCluster } from "@/components/InstrumentCluster";
 import { KpiCard } from "@/components/KpiCard";
 import { ProcessFlow } from "@/components/ProcessFlow";
 import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
@@ -22,7 +21,6 @@ import { STAGE_BLURB, STAGE_LABEL, STAGES } from "@/lib/viz";
  */
 export function ProductionEfficiency() {
   const { range, withRange } = useRange();
-  const overview = usePlantOverview(range);
   const boarding = useStageView("board_manufacturing", range);
   const printing = useStageView("printing", range);
   const bundling = useStageView("bundling", range);
@@ -34,7 +32,7 @@ export function ProductionEfficiency() {
   };
 
   const crumbs = [{ label: "Production Efficiency" }];
-  const anyPending = overview.isPending || boarding.isPending || printing.isPending || bundling.isPending;
+  const anyPending = boarding.isPending || printing.isPending || bundling.isPending;
   const statusLine =
     boarding.data?.status_line ?? printing.data?.status_line ?? bundling.data?.status_line;
   const rangeInfo = boarding.data?.range ?? printing.data?.range ?? bundling.data?.range;
@@ -51,9 +49,6 @@ export function ProductionEfficiency() {
     <Shell crumbs={crumbs} range={rangeInfo}>
       <div className="flex flex-col gap-4">
         {statusLine && <ProcessFlow stages={statusLine} />}
-        {overview.data && (
-          <InstrumentCluster statusLine={overview.data.status_line} totals={overview.data.totals} />
-        )}
 
         {STAGES.map((stage) => (
           <StageEfficiencySection
