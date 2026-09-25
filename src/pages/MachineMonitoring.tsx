@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
 
-import { REFRESH, useStageSpecifics, useStageView } from "@/api/queries";
+import { REFRESH, usePlantOverview, useStageSpecifics, useStageView } from "@/api/queries";
 import type { Stage } from "@/api/types";
 import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
 import { BandStrip } from "@/components/charts/BandStrip";
 import { ChartFrame } from "@/components/charts/ChartFrame";
+import { InstrumentCluster } from "@/components/InstrumentCluster";
 import { MachineTileCard } from "@/components/MachineTileCard";
 import { ProcessDiagram } from "@/components/ProcessDiagram";
 import { ProcessFlow } from "@/components/ProcessFlow";
@@ -26,6 +27,7 @@ export function MachineMonitoring() {
   // process diagram lives here, so it polls faster than the 2-3 minute spec
   // cadence used everywhere else useStageView is called.
   const liveOptions = { refetchInterval: REFRESH.demo };
+  const overview = usePlantOverview(range, liveOptions);
   const boarding = useStageView("board_manufacturing", range, liveOptions);
   const printing = useStageView("printing", range, liveOptions);
   const bundling = useStageView("bundling", range, liveOptions);
@@ -47,6 +49,7 @@ export function MachineMonitoring() {
 
   const crumbs = [{ label: "Machine Monitoring" }];
   const anyPending =
+    overview.isPending ||
     boarding.isPending ||
     printing.isPending ||
     bundling.isPending ||
@@ -75,6 +78,9 @@ export function MachineMonitoring() {
     <Shell crumbs={crumbs} range={rangeInfo}>
       <div className="flex flex-col gap-4">
         {statusLine && <ProcessFlow stages={statusLine} />}
+        {overview.data && (
+          <InstrumentCluster statusLine={overview.data.status_line} totals={overview.data.totals} />
+        )}
 
         <ChartFrame
           title="Live process flow"

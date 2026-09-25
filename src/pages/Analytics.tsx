@@ -3,6 +3,7 @@ import { useState } from "react";
 import { usePlantOverview, useStageSpecifics, useTrends } from "@/api/queries";
 import type { ParetoBar, Stage } from "@/api/types";
 import { AlertPanel } from "@/components/AlertPanel";
+import { InstrumentCluster } from "@/components/InstrumentCluster";
 import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
 import { ChartFrame } from "@/components/charts/ChartFrame";
 import { LossWaterfall } from "@/components/charts/LossWaterfall";
@@ -83,6 +84,10 @@ export function Analytics() {
   return (
     <Shell crumbs={crumbs} range={overview.data?.range}>
       <div className="flex flex-col gap-3">
+        {overview.data && (
+          <InstrumentCluster statusLine={overview.data.status_line} totals={overview.data.totals} />
+        )}
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {TREND_METRICS.map(([key, label, unit]) => {
             const band = trends.data.bands[key];

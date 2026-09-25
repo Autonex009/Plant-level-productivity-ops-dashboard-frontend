@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { usePlantOverview, useTrends } from "@/api/queries";
 import type { RollupCard, WaterfallStep } from "@/api/types";
 import { AlertPanel } from "@/components/AlertPanel";
+import { InstrumentCluster } from "@/components/InstrumentCluster";
 import { FactorStrip, KpiCard } from "@/components/KpiCard";
 import { ProcessFlow } from "@/components/ProcessFlow";
 import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
@@ -84,6 +85,7 @@ export function PlantView() {
     <Shell crumbs={crumbs} range={data.range} generatedAt={data.generated_at}>
       <div className="flex flex-col gap-4">
         <ProcessFlow stages={data.status_line} generatedAt={data.generated_at} />
+        <InstrumentCluster statusLine={data.status_line} totals={data.totals} />
 
         {/* Four rollups, never five. */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

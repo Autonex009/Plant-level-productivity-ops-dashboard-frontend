@@ -67,11 +67,11 @@ export async function get<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function usePlantOverview(range: RangeParams) {
+export function usePlantOverview(range: RangeParams, options?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: ["overview", PLANT_ID, range],
     queryFn: () => get<PlantOverview>(`${BASE}/plants/${PLANT_ID}/overview?${toSearch(range)}`),
-    refetchInterval: REFRESH.panels,
+    refetchInterval: options?.refetchInterval ?? REFRESH.panels,
   });
 }
 

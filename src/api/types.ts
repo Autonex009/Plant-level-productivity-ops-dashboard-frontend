@@ -29,6 +29,8 @@ export interface StatusDot {
   live_unit: string | null;
   minutes_in_state?: number | null;
   worst_machine: string | null;
+  rated_speed: number | null;
+  target: number | null;
 }
 
 export interface SubValue {
@@ -136,6 +138,7 @@ export interface PlantTotals {
   dg_kwh: number;
   total_kwh: number;
   tonnes_produced: number;
+  lineal_metres_run: number;
   power_per_tonne_kwh: number | null;
   dg_hours: number;
   grid_share_pct: number | null;
