@@ -337,7 +337,7 @@ export function InstrumentCluster({ statusLine, totals }: { statusLine: StatusDo
   return (
     <div className="panel flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6">
       <div className="flex shrink-0 flex-row gap-4 sm:flex-col">
-        <Odometer label="Board produced" value={totals.tonnes_produced} digits={1} unit="t" />
+        <Odometer label="Board produced" value={totals.tonnes_produced} digits={0} unit="t" />
         <Odometer label="Linear metres run" value={totals.lineal_metres_run} digits={0} unit="lm" />
         <div className="hidden items-center gap-1.5 text-[11px] text-[var(--color-ink-muted)] sm:flex">
           <span

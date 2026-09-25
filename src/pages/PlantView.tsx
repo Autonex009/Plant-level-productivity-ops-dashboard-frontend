@@ -22,7 +22,7 @@ import { TrendLine } from "@/components/charts/TrendLine";
 import { formatInr, formatMetric } from "@/lib/format";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useRange } from "@/lib/useRange";
-import { RAG_META } from "@/lib/viz";
+import { kpiArcRange, RAG_META } from "@/lib/viz";
 
 /**
  * Level 1 - the plant view. "What is happening with the plant right now?"
@@ -214,12 +214,18 @@ function RollupTile({ card, onOpen }: { card: RollupCard; onOpen: () => void }) 
   // reference's invented splice/trim/warp split - a picture is only worth
   // adding here if it isn't inventing a number the rest of the app wouldn't
   // stand behind.
+  // The axis comes from the same rule every KPI card in the app uses, rather
+  // than a bound hand-picked per card: a percentage reads against 0-100, so a
+  // real 82% fills 82% of the arc instead of contradicting the figure beside
+  // it, and anything else reads against its own target.
+  const arc = kpiArcRange({ ...card, lowerIsBetter: card.lower_is_better });
+
   let viz: React.ReactNode = null;
   let vizBelow: React.ReactNode = null;
-  if (card.key === "overall_yield_pct") {
-    viz = <MiniArc value={card.value} min={80} max={100} target={card.target} color={ragColor} />;
-  } else if (card.key === "power_per_tonne_kwh") {
-    viz = <MiniArc value={card.value} min={50} max={130} target={card.target} color={ragColor} />;
+  if ((card.key === "overall_yield_pct" || card.key === "power_per_tonne_kwh") && arc) {
+    viz = (
+      <MiniArc value={card.value} min={arc.min} max={arc.max} target={card.target} color={ragColor} />
+    );
   } else if (isProductivity) {
     const find = (label: string) => card.sub_values.find((v) => v.label === label)?.value ?? null;
     viz = (

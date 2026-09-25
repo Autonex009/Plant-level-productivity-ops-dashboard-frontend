@@ -43,7 +43,19 @@ export function MiniArc({
   const clamp = (v: number) => Math.max(min, Math.min(max, v));
   const pct = value != null ? (clamp(value) - min) / (max - min) : 0;
   const path = domePath(cx, cy, r);
-  const targetAngle = target != null ? -90 + ((clamp(target) - min) / (max - min)) * 180 : null;
+
+  // The round caps paint about half a stroke beyond each geometric end, so a
+  // target near the top of the scale (99.5% on a 0-100 axis, say) would
+  // otherwise land past the visible band and read as a stray dash floating
+  // beside the arc. Hold the tick that far inside each end.
+  const capDegrees = (Math.atan2(stroke / 2, r) * 180) / Math.PI;
+  const targetAngle =
+    target != null
+      ? Math.max(
+          -90 + capDegrees,
+          Math.min(90 - capDegrees, -90 + ((clamp(target) - min) / (max - min)) * 180),
+        )
+      : null;
 
   return (
     <svg width={size} height={size * 0.62} viewBox={`0 0 ${size} ${size * 0.62}`} aria-hidden>
