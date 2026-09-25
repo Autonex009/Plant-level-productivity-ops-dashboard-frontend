@@ -93,7 +93,6 @@ export function StageView() {
               rag={kpi.rag}
               provisional={kpi.provisional}
               lowerIsBetter={kpi.lower_is_better}
-              seasonAdjusted={kpi.season_adjusted}
               sub={kpi.sub ? <span className="text-[var(--color-ink-muted)]">{kpi.sub}</span> : undefined}
               onClick={() => toSpecifics("hours", { metric: kpi.key })}
             />

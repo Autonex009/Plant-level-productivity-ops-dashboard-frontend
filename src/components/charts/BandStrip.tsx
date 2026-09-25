@@ -127,11 +127,6 @@ export function BandStrip({
             </span>
           )}
         </span>
-        {strip.season_adjusted && (
-          <span className="rounded bg-[var(--color-surface-3)] px-1.5 py-0.5 text-[10px] text-[var(--color-ink-muted)]">
-            monsoon band
-          </span>
-        )}
         <span className="ml-auto text-[var(--color-ink-muted)]">
           {formatClock(strip.last_checked_at)}
         </span>

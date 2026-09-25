@@ -5,6 +5,7 @@ import type { RollupCard, WaterfallStep } from "@/api/types";
 import { AlertPanel } from "@/components/AlertPanel";
 import { InstrumentCluster } from "@/components/InstrumentCluster";
 import { FactorStrip, KpiCard } from "@/components/KpiCard";
+import { MiniArc, PlanBar, TripleRing } from "@/components/MiniViz";
 import { ProcessFlow } from "@/components/ProcessFlow";
 import { ErrorPanel, LoadingPanel, Shell } from "@/components/Shell";
 import { OwnerMobileView } from "@/pages/OwnerMobileView";
@@ -20,6 +21,7 @@ import { TrendLine } from "@/components/charts/TrendLine";
 import { formatInr, formatMetric } from "@/lib/format";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useRange } from "@/lib/useRange";
+import { RAG_META } from "@/lib/viz";
 
 /**
  * Level 1 - the plant view. "What is happening with the plant right now?"
@@ -189,6 +191,34 @@ function RollupTile({ card, onOpen }: { card: RollupCard; onOpen: () => void }) 
   const isProductivity = card.key === "plant_productivity_pct";
   const isWaste = card.key === "cost_of_waste_inr";
   const excess = card.sub_values.find((value) => value.label === "Excess");
+  const ragColor = RAG_META[card.rag].color;
+
+  // The same icon-per-card idea as the reference dashboard: a half-donut
+  // against its band for a single figure, concentric rings for the U x R x Q
+  // composite. The waste card's bar is real actual-vs-plan spend, not the
+  // reference's invented splice/trim/warp split - a picture is only worth
+  // adding here if it isn't inventing a number the rest of the app wouldn't
+  // stand behind.
+  let viz: React.ReactNode = null;
+  let vizBelow: React.ReactNode = null;
+  if (card.key === "overall_yield_pct") {
+    viz = <MiniArc value={card.value} min={80} max={100} target={card.target} color={ragColor} />;
+  } else if (card.key === "power_per_tonne_kwh") {
+    viz = <MiniArc value={card.value} min={50} max={130} target={card.target} color={ragColor} />;
+  } else if (isProductivity) {
+    const find = (label: string) => card.sub_values.find((v) => v.label === label)?.value ?? null;
+    viz = (
+      <TripleRing
+        items={[
+          { value: find("U"), color: "var(--color-series-1)" },
+          { value: find("R"), color: "var(--color-warning)" },
+          { value: find("Q"), color: "var(--color-good)" },
+        ]}
+      />
+    );
+  } else if (isWaste && excess?.value != null && card.value != null) {
+    vizBelow = <PlanBar actual={card.value} planned={card.value - excess.value} />;
+  }
 
   return (
     <KpiCard
@@ -199,10 +229,11 @@ function RollupTile({ card, onOpen }: { card: RollupCard; onOpen: () => void }) 
       rag={card.rag}
       provisional={card.provisional}
       lowerIsBetter={card.lower_is_better}
-      seasonAdjusted={card.season_adjusted}
       delta={card.delta}
       deltaDirection={card.delta_direction}
       onClick={onOpen}
+      viz={viz}
+      vizBelow={vizBelow}
       sub={
         isProductivity ? (
           <FactorStrip items={card.sub_values} />

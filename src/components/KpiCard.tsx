@@ -42,12 +42,13 @@ export function KpiCard({
   rag,
   provisional,
   lowerIsBetter,
-  seasonAdjusted,
   sub,
   delta,
   deltaDirection,
   onClick,
   footer,
+  viz,
+  vizBelow,
 }: {
   label: string;
   value: number | null;
@@ -56,12 +57,15 @@ export function KpiCard({
   rag: Rag;
   provisional?: boolean;
   lowerIsBetter?: boolean;
-  seasonAdjusted?: boolean;
   sub?: ReactNode;
   delta?: number | null;
   deltaDirection?: string | null;
   onClick?: () => void;
   footer?: ReactNode;
+  /** A small icon-sized visual, beside the value (a mini gauge, some rings). */
+  viz?: ReactNode;
+  /** A full-width visual below the target/sub line (a bar, not an icon). */
+  vizBelow?: ReactNode;
 }) {
   const tone = deltaTone(deltaDirection);
   const Wrapper = onClick ? "button" : "div";
@@ -79,23 +83,26 @@ export function KpiCard({
         <RagPill rag={rag} />
       </div>
 
-      <div className="mt-[1px] flex items-baseline gap-1.5">
-        <span className="text-[clamp(19px,2.3vw,25px)] font-extrabold leading-none tracking-[-0.01em] text-[var(--color-ink)]">
-          {formatMetric(value, unit)}
-        </span>
-        {unit !== "INR" && (
-          <span className="text-[13px] font-semibold text-[var(--color-ink-2)]">{unit}</span>
-        )}
-        {/* The tilde is a promise: this number is still settling and will be
-            reconciled at shift close. The dashboard never silently revises. */}
-        {provisional && (
-          <span
-            title="Provisional until the shift is reconciled against weighed waste"
-            className="text-[14px] font-bold leading-none text-[var(--color-ink-muted)]"
-          >
-            ~
+      <div className="mt-[1px] flex items-end justify-between gap-2">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[clamp(19px,2.3vw,25px)] font-extrabold leading-none tracking-[-0.01em] text-[var(--color-ink)]">
+            {formatMetric(value, unit)}
           </span>
-        )}
+          {unit !== "INR" && (
+            <span className="text-[13px] font-semibold text-[var(--color-ink-2)]">{unit}</span>
+          )}
+          {/* The tilde is a promise: this number is still settling and will be
+              reconciled at shift close. The dashboard never silently revises. */}
+          {provisional && (
+            <span
+              title="Provisional until the shift is reconciled against weighed waste"
+              className="text-[14px] font-bold leading-none text-[var(--color-ink-muted)]"
+            >
+              ~
+            </span>
+          )}
+        </div>
+        {viz && <div className="shrink-0">{viz}</div>}
       </div>
 
       <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[11.5px] text-[var(--color-ink-2)]">
@@ -112,16 +119,12 @@ export function KpiCard({
         ) : (
           <span>{sub}</span>
         )}
-        {seasonAdjusted && (
-          <span className="rounded bg-[var(--color-surface-3)] px-1.5 py-0.5 text-[10.5px]" title="Monsoon band applied - a seasonal dip here is expected, not a failure">
-            monsoon band
-          </span>
-        )}
       </div>
 
       {delta != null && sub ? (
         <div className="mt-1 text-[11px] text-[var(--color-ink-2)]">{sub}</div>
       ) : null}
+      {vizBelow}
       {footer}
     </Wrapper>
   );

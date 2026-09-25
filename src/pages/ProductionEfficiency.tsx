@@ -105,7 +105,6 @@ function StageEfficiencySection({
             rag={kpi.rag}
             provisional={kpi.provisional}
             lowerIsBetter={kpi.lower_is_better}
-            seasonAdjusted={kpi.season_adjusted}
           />
         ))}
       </div>
